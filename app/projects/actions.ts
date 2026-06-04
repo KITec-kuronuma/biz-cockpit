@@ -16,8 +16,6 @@ const projectSchema = z
     licenseFee: z.coerce.number().int().min(0).optional(),
     licenseStartDate: z.string().optional(),
     licenseCycle: z.string().optional(),
-    status: z.string().default("LEAD"),
-    progress: z.string().default("NOT_STARTED"),
     detailPhase: z.string().optional(),
     initialForecast: z.string().regex(/^\d{4}-\d{2}$/).optional().or(z.literal("")),
     note: z.string().optional(),
@@ -37,6 +35,58 @@ function parseDate(s: string | undefined): Date | null {
   return new Date(s + "T00:00:00Z");
 }
 
+// 詳細フェーズから 契約状況・進捗 を自動推定（運用簡素化）
+function inferStatusProgress(detailPhase: string | undefined): {
+  status: string;
+  progress: string;
+} {
+  switch (detailPhase) {
+    case "kikaku":
+    case "mitsumori":
+      return { status: "LEAD", progress: "NOT_STARTED" };
+    case "ringi":
+    case "ringi_saki":
+      return { status: "NEGOTIATING", progress: "NOT_STARTED" };
+    case "keiyaku":
+      return { status: "WON", progress: "NOT_STARTED" };
+    case "kaihatsu":
+      return { status: "WON", progress: "IN_PROGRESS" };
+    case "ukenyu":
+      return { status: "WON", progress: "DELIVERED" };
+    case "seikyu":
+    case "miunyou":
+      return { status: "WON", progress: "DELIVERED" };
+    case "kanryo":
+      return { status: "WON", progress: "COMPLETED" };
+    case "shanai":
+      return { status: "ON_HOLD", progress: "NOT_STARTED" };
+    case "miokuri":
+      return { status: "LOST", progress: "NOT_STARTED" };
+    default:
+      return { status: "LEAD", progress: "NOT_STARTED" };
+  }
+}
+
+function buildData(d: z.infer<typeof projectSchema>) {
+  const inferred = inferStatusProgress(d.detailPhase);
+  return {
+    clientId: d.clientId,
+    title: d.title,
+    contractDate: parseDate(d.contractDate),
+    deliveryDate: parseDate(d.deliveryDate),
+    contractAmount: d.contractAmount,
+    taxRate: d.taxRate,
+    licenseFee: d.licenseFee ?? null,
+    licenseStartDate: parseDate(d.licenseStartDate),
+    licenseCycle: d.licenseCycle || null,
+    status: inferred.status,
+    progress: inferred.progress,
+    detailPhase: d.detailPhase || null,
+    initialForecast: d.initialForecast || null,
+    note: d.note || null,
+  };
+}
+
 export async function createProject(formData: FormData) {
   const raw = Object.fromEntries(formData.entries());
   const data = projectSchema.parse({
@@ -44,24 +94,7 @@ export async function createProject(formData: FormData) {
     licenseFee: raw.licenseFee || undefined,
   });
 
-  const created = await prisma.project.create({
-    data: {
-      clientId: data.clientId,
-      title: data.title,
-      contractDate: parseDate(data.contractDate),
-      deliveryDate: parseDate(data.deliveryDate),
-      contractAmount: data.contractAmount,
-      taxRate: data.taxRate,
-      licenseFee: data.licenseFee ?? null,
-      licenseStartDate: parseDate(data.licenseStartDate),
-      licenseCycle: data.licenseCycle || null,
-      status: data.status,
-      progress: data.progress,
-      detailPhase: data.detailPhase || null,
-      initialForecast: data.initialForecast || null,
-      note: data.note || null,
-    },
-  });
+  const created = await prisma.project.create({ data: buildData(data) });
 
   revalidatePath("/projects");
   revalidatePath("/");
@@ -77,27 +110,14 @@ export async function updateProject(projectId: string, formData: FormData) {
 
   await prisma.project.update({
     where: { id: projectId },
-    data: {
-      clientId: data.clientId,
-      title: data.title,
-      contractDate: parseDate(data.contractDate),
-      deliveryDate: parseDate(data.deliveryDate),
-      contractAmount: data.contractAmount,
-      taxRate: data.taxRate,
-      licenseFee: data.licenseFee ?? null,
-      licenseStartDate: parseDate(data.licenseStartDate),
-      licenseCycle: data.licenseCycle || null,
-      status: data.status,
-      progress: data.progress,
-      detailPhase: data.detailPhase || null,
-      initialForecast: data.initialForecast || null,
-      note: data.note || null,
-    },
+    data: buildData(data),
   });
 
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
   revalidatePath("/");
+  // 更新後は詳細画面に戻る（保存完了が分かりやすいよう）
+  redirect(`/projects/${projectId}`);
 }
 
 export async function deleteProject(projectId: string) {

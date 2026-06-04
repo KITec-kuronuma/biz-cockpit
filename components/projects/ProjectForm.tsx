@@ -1,12 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  STATUS_LABELS,
-  PROGRESS_LABELS,
-  DETAIL_PHASE_LABELS,
-  LICENSE_CYCLE_LABELS,
-} from "@/lib/types";
+import { DETAIL_PHASE_LABELS, LICENSE_CYCLE_LABELS } from "@/lib/types";
 
 type Client = { id: string; name: string };
 type ProjectInitial = {
@@ -19,8 +14,6 @@ type ProjectInitial = {
   licenseFee?: number | null;
   licenseStartDate: string;
   licenseCycle?: string | null;
-  status: string;
-  progress: string;
   detailPhase?: string | null;
   initialForecast?: string | null;
   note?: string | null;
@@ -38,13 +31,20 @@ export function ProjectForm({
   submitLabel?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(formData: FormData) {
     try {
       setError(null);
+      setSubmitting(true);
       await action(formData);
     } catch (e) {
+      // redirect() は NEXT_REDIRECT エラーを投げる（正常動作）
+      if (e instanceof Error && e.message.includes("NEXT_REDIRECT")) {
+        throw e;
+      }
       setError(e instanceof Error ? e.message : "保存に失敗しました");
+      setSubmitting(false);
     }
   }
 
@@ -64,9 +64,13 @@ export function ProjectForm({
             defaultValue={initial?.clientId ?? ""}
             className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
           >
-            <option value="" disabled>選択してください</option>
+            <option value="" disabled>
+              選択してください
+            </option>
             {clients.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
             ))}
           </select>
         </Field>
@@ -159,48 +163,31 @@ export function ProjectForm({
           >
             <option value="">—</option>
             {Object.entries(LICENSE_CYCLE_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
+              <option key={k} value={k}>
+                {v}
+              </option>
             ))}
           </select>
         </Field>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <Field label="契約状況">
-          <select
-            name="status"
-            defaultValue={initial?.status ?? "LEAD"}
-            className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
-          >
-            {Object.entries(STATUS_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="進捗">
-          <select
-            name="progress"
-            defaultValue={initial?.progress ?? "NOT_STARTED"}
-            className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
-          >
-            {Object.entries(PROGRESS_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="詳細フェーズ（補助）">
-          <select
-            name="detailPhase"
-            defaultValue={initial?.detailPhase ?? ""}
-            className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
-          >
-            <option value="">—</option>
-            {Object.entries(DETAIL_PHASE_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </Field>
-      </div>
+      <Field label="詳細フェーズ（案件の現在の状況）">
+        <select
+          name="detailPhase"
+          defaultValue={initial?.detailPhase ?? ""}
+          className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+        >
+          <option value="">—</option>
+          {Object.entries(DETAIL_PHASE_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+        <p className="text-[10px] text-slate-400 mt-1">
+          ※ 詳細フェーズから「契約状況」「進捗」は自動的に設定されます。
+        </p>
+      </Field>
 
       <Field label="備考">
         <textarea
@@ -214,9 +201,10 @@ export function ProjectForm({
       <div className="flex justify-end gap-2 pt-2">
         <button
           type="submit"
-          className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+          disabled={submitting}
+          className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {submitLabel}
+          {submitting ? "保存中..." : submitLabel}
         </button>
       </div>
     </form>

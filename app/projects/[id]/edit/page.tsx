@@ -28,8 +28,6 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
     licenseFee: project.licenseFee,
     licenseStartDate: toInputDate(project.licenseStartDate),
     licenseCycle: project.licenseCycle,
-    status: project.status,
-    progress: project.progress,
     detailPhase: project.detailPhase,
     initialForecast: project.initialForecast,
     note: project.note,

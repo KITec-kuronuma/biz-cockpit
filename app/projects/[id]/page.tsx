@@ -203,14 +203,18 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </form>
       </div>
 
-      {/* 月別売上見込み */}
+      {/* 月別売上見込み（期初予想 vs 現状見込み） */}
       <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4">
-        <h2 className="text-sm font-semibold mb-3">📈 月別売上見込み ({project.forecasts.length}件)</h2>
+        <h2 className="text-sm font-semibold mb-3">
+          📈 月別売上予定 ({project.forecasts.length}件)
+        </h2>
         <table className="w-full text-sm mb-4">
           <thead>
             <tr className="text-left text-xs text-slate-500 border-b border-slate-200">
               <th className="py-2">年月</th>
-              <th>見込額</th>
+              <th className="text-right">期初予想</th>
+              <th className="text-right">現状見込み</th>
+              <th className="text-right">差分</th>
               <th>メモ</th>
               <th></th>
             </tr>
@@ -218,36 +222,64 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <tbody>
             {project.forecasts.length === 0 && (
               <tr>
-                <td colSpan={4} className="py-4 text-center text-xs text-slate-400">
-                  月別見込みはまだ登録されていません
+                <td colSpan={6} className="py-4 text-center text-xs text-slate-400">
+                  月別売上予定はまだ登録されていません。下のフォームから登録してください。
                 </td>
               </tr>
             )}
-            {project.forecasts.map((f) => (
-              <tr key={f.id} className="border-b border-slate-100">
-                <td className="py-2 text-xs">{f.yearMonth}</td>
-                <td className="font-medium">{formatCurrencyFull(f.amount)}</td>
-                <td className="text-xs text-slate-600">{f.note ?? "—"}</td>
-                <td>
-                  <form action={deleteForecast.bind(null, f.id, project.id)} className="inline">
-                    <button className="text-xs text-red-600 hover:underline">削除</button>
-                  </form>
-                </td>
-              </tr>
-            ))}
+            {project.forecasts.map((f) => {
+              const diff = f.amount - f.initialAmount;
+              return (
+                <tr key={f.id} className="border-b border-slate-100">
+                  <td className="py-2 text-xs">{f.yearMonth}</td>
+                  <td className="text-right text-slate-600">
+                    {formatCurrencyFull(f.initialAmount)}
+                  </td>
+                  <td className="text-right font-medium text-blue-700">
+                    {formatCurrencyFull(f.amount)}
+                  </td>
+                  <td
+                    className={`text-right text-xs ${
+                      diff > 0 ? "text-emerald-600" : diff < 0 ? "text-red-600" : "text-slate-400"
+                    }`}
+                  >
+                    {diff === 0 ? "—" : (diff > 0 ? "+" : "") + formatCurrencyFull(diff)}
+                  </td>
+                  <td className="text-xs text-slate-600">{f.note ?? "—"}</td>
+                  <td>
+                    <form action={deleteForecast.bind(null, f.id, project.id)} className="inline">
+                      <button className="text-xs text-red-600 hover:underline">削除</button>
+                    </form>
+                  </td>
+                </tr>
+              );
+            })}
             {project.forecasts.length > 0 && (
               <tr className="bg-slate-50 font-bold">
                 <td className="py-2 text-xs">合計</td>
-                <td>
+                <td className="text-right">
+                  {formatCurrencyFull(project.forecasts.reduce((s, f) => s + f.initialAmount, 0))}
+                </td>
+                <td className="text-right text-blue-700">
                   {formatCurrencyFull(project.forecasts.reduce((s, f) => s + f.amount, 0))}
                 </td>
-                <td colSpan={2} className="text-[11px] text-slate-500">
-                  契約金額 {formatCurrencyFull(project.contractAmount)} との差：
-                  <strong>
-                    {formatCurrencyFull(
-                      project.forecasts.reduce((s, f) => s + f.amount, 0) - project.contractAmount
-                    )}
-                  </strong>
+                <td className="text-right text-xs">
+                  {(() => {
+                    const d =
+                      project.forecasts.reduce((s, f) => s + f.amount, 0) -
+                      project.forecasts.reduce((s, f) => s + f.initialAmount, 0);
+                    return d === 0 ? "—" : (
+                      <span className={d > 0 ? "text-emerald-600" : "text-red-600"}>
+                        {(d > 0 ? "+" : "") + formatCurrencyFull(d)}
+                      </span>
+                    );
+                  })()}
+                </td>
+                <td colSpan={2} className="text-[11px] text-slate-500 font-normal">
+                  契約 {formatCurrencyFull(project.contractAmount)} 対：
+                  {formatCurrencyFull(
+                    project.forecasts.reduce((s, f) => s + f.amount, 0) - project.contractAmount
+                  )}
                 </td>
               </tr>
             )}
@@ -268,7 +300,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             />
           </div>
           <div>
-            <label className="text-[10px] text-slate-500 block">見込額</label>
+            <label className="text-[10px] text-slate-500 block">金額</label>
             <input
               type="number"
               name="amount"
@@ -286,11 +318,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             />
           </div>
           <button className="px-3 py-1 bg-blue-600 text-white rounded text-xs">
-            ＋ 月別見込み追加 / 更新
+            ＋ 追加 / 現状更新
           </button>
         </form>
         <p className="text-[11px] text-slate-400 mt-2">
-          💡 同じ年月で再登録すると上書きされます。ダッシュボードと財務画面に集計されます。
+          💡 <strong>新規登録時：</strong>「期初予想」と「現状見込み」の両方に金額がセットされます<br />
+          💡 <strong>既存月で再登録：</strong>「現状見込み」のみ更新（期初予想は固定）→ 差分でズレを追跡<br />
+          💡 ダッシュボードと財務画面に自動集計されます
         </p>
       </div>
 

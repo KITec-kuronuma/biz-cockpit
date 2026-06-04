@@ -83,16 +83,17 @@ model Project {
   updatedAt        DateTime                  @updatedAt
 }
 
-// 案件別 月次売上見込み（予算/フォーキャスト）
+// 案件別 月次売上見込み（期初予想 + 現状見込みの2軸）
 model ProjectMonthlyForecast {
-  id        String   @id @default(cuid())
-  projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  yearMonth String   // YYYY-MM
-  amount    Int
-  note      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  yearMonth     String   // YYYY-MM
+  initialAmount Int      @default(0) // 期初予想（登録時にロック）
+  amount        Int      // 現状見込み（随時更新可）
+  note          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([projectId, yearMonth])
 }

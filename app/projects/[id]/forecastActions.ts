@@ -11,7 +11,9 @@ const forecastSchema = z.object({
   note: z.string().optional(),
 });
 
-export async function addForecast(formData: FormData) {
+// 月別見込みを追加 or 現状見込みのみ更新
+// 期初予想は新規登録時のみ amount と同じ値で記録され、その後変更されない
+export async function upsertForecast(formData: FormData) {
   const data = forecastSchema.parse({
     projectId: formData.get("projectId"),
     yearMonth: formData.get("yearMonth"),
@@ -24,10 +26,12 @@ export async function addForecast(formData: FormData) {
     create: {
       projectId: data.projectId,
       yearMonth: data.yearMonth,
+      initialAmount: data.amount, // 新規時のみセット
       amount: data.amount,
       note: data.note ?? null,
     },
     update: {
+      // 期初予想（initialAmount）は変更しない
       amount: data.amount,
       note: data.note ?? null,
     },
@@ -38,9 +42,24 @@ export async function addForecast(formData: FormData) {
   revalidatePath("/finance");
 }
 
+// 期初予想を再設定（運用上のリセット）
+export async function resetInitialForecast(forecastId: string, projectId: string) {
+  const f = await prisma.projectMonthlyForecast.findUnique({ where: { id: forecastId } });
+  if (!f) return;
+  await prisma.projectMonthlyForecast.update({
+    where: { id: forecastId },
+    data: { initialAmount: f.amount },
+  });
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/");
+}
+
 export async function deleteForecast(forecastId: string, projectId: string) {
   await prisma.projectMonthlyForecast.delete({ where: { id: forecastId } });
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/");
   revalidatePath("/finance");
 }
+
+// 旧コード互換のためのエイリアス（既存呼び出し箇所のため）
+export const addForecast = upsertForecast;

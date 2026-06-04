@@ -1,13 +1,13 @@
 import { prisma } from "@/lib/prisma";
-import { calcContractAchievement, calcPaymentRate, calcFunnel } from "@/lib/domain/kpi";
+import { calcPaymentRate, calcFunnel } from "@/lib/domain/kpi";
 import { calcCashflow } from "@/lib/domain/cf";
 import { getFiscalMonths } from "@/lib/domain/fiscal";
-import { formatCurrency, formatPercent, formatCurrencyFull, toYearMonth } from "@/lib/format";
+import { formatCurrency, formatPercent, formatCurrencyFull } from "@/lib/format";
 import { STATUS_LABELS, PROGRESS_LABELS } from "@/lib/types";
 import Link from "next/link";
 
 export default async function DashboardPage() {
-  const [setting, projects] = await Promise.all([
+  const [setting, projects, clientBudgets] = await Promise.all([
     prisma.setting.findFirst(),
     prisma.project.findMany({
       include: {
@@ -17,26 +17,17 @@ export default async function DashboardPage() {
         forecasts: true,
       },
     }),
+    prisma.clientMonthlyBudget.findMany({ include: { client: true } }),
   ]);
 
   const fiscalYear = 2026;
   const fiscalStartMonth = setting?.fiscalStartMonth ?? 4;
-  const targetAmount = setting?.targetContractAmount ?? 100_000_000;
-  const annualBudget = setting?.annualBudgetRevenue ?? 120_000_000;
   const months = getFiscalMonths({ startMonth: fiscalStartMonth, year: fiscalYear });
   const thisMonth = "2026-05"; // ダッシュボードの基準月（実機ではDate.now()を使う）
-
-  const achievement = calcContractAchievement({
-    projects,
-    fiscalYear,
-    fiscalStartMonth,
-    targetAmount,
-  });
 
   const payment = calcPaymentRate(projects);
   const funnel = calcFunnel(projects);
 
-  const wonCount = projects.filter((p) => p.status === "WON").length;
   const activeProjects = projects.filter((p) => !["LOST", "ON_HOLD"].includes(p.status));
 
   // CF計算
@@ -83,39 +74,255 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <KPICard
-          label="受注額（年度）"
-          value={formatCurrency(achievement.wonAmount)}
-          sub={`目標 ${formatCurrency(achievement.targetAmount)}`}
-          color="blue"
-        />
-        <KPICard
-          label="契約達成率"
-          value={formatPercent(achievement.rate)}
-          sub={`受注 ${wonCount}件 / 目標 ${setting?.targetContractCount ?? 5}件`}
-          color="green"
-        />
-        <KPICard
-          label="入金率"
-          value={formatPercent(payment.rate)}
-          sub={`請求 ${formatCurrency(payment.invoiced)} / 入金 ${formatCurrency(payment.paid)}`}
-          color="emerald"
-        />
-        <KPICard
-          label="未入金残高"
-          value={formatCurrency(payment.unpaid)}
-          sub={overdueCount > 0 ? `うち遅延 ${overdueCount}件 ${formatCurrency(overdueAmount)}` : "請求済 − 入金済"}
-          color={overdueCount > 0 ? "red" : "amber"}
-        />
-      </div>
+      {(() => {
+        // ===== 月別 予算 / 実績 / 売上予定（見込み） を集計 =====
+        const byMonth: Record<string, { budget: number; actual: number; forecast: number }> = {};
+        months.forEach((m) => (byMonth[m] = { budget: 0, actual: 0, forecast: 0 }));
 
+        // 予算：取引先×月別予算の合計
+        for (const b of clientBudgets) {
+          if (byMonth[b.yearMonth]) byMonth[b.yearMonth].budget += b.amount;
+        }
+        // 実績：請求月で計上
+        // 売上予定：案件月別フォーキャスト
+        for (const p of projects) {
+          for (const f of p.forecasts) {
+            if (byMonth[f.yearMonth]) byMonth[f.yearMonth].forecast += f.amount;
+          }
+          for (const inv of p.invoices) {
+            const ym = `${inv.invoiceDate.getUTCFullYear()}-${String(
+              inv.invoiceDate.getUTCMonth() + 1
+            ).padStart(2, "0")}`;
+            if (byMonth[ym]) byMonth[ym].actual += inv.amount;
+          }
+        }
+
+        // 既請求済みは見込みから差し引いて二重計上を防ぐ（簡易：見込み≥実績のときに調整）
+        // ただし運用上、見込みは未請求分の予測なのでそのまま積み上げる選択もある。
+        // ここでは「着地見込み = 実績 + 未来の見込み」とする
+        const futureMonths = months.filter((m) => m > thisMonth);
+        const totalBudget = Object.values(byMonth).reduce((s, v) => s + v.budget, 0);
+        const totalActual = Object.values(byMonth).reduce((s, v) => s + v.actual, 0);
+        const totalFutureForecast = futureMonths.reduce(
+          (s, m) => s + byMonth[m].forecast,
+          0
+        );
+        const totalCurrentMonthForecast = byMonth[thisMonth]?.forecast ?? 0;
+        // 着地見込み = 実績合計 + 当月以降の見込み（見込みのほうが実績より大きい分）
+        const totalLanding = totalActual + totalFutureForecast +
+          Math.max(0, totalCurrentMonthForecast - (byMonth[thisMonth]?.actual ?? 0));
+
+        const achievementRate = totalBudget > 0 ? totalActual / totalBudget : 0;
+        const landingRate = totalBudget > 0 ? totalLanding / totalBudget : 0;
+        const diffActual = totalActual - totalBudget;
+        const diffLanding = totalLanding - totalBudget;
+
+        return (
+          <>
+            {/* 予算進捗 KPI */}
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              <KPICard
+                label="当期予算（取引先×月の合計）"
+                value={formatCurrency(totalBudget)}
+                sub={`${clientBudgets.length}件登録`}
+                color="slate"
+              />
+              <KPICard
+                label="実績（請求済）"
+                value={formatCurrency(totalActual)}
+                sub={`予算比 ${formatPercent(achievementRate)}`}
+                color="blue"
+              />
+              <KPICard
+                label="着地見込み（実績＋売上予定）"
+                value={formatCurrency(totalLanding)}
+                sub={`予算比 ${formatPercent(landingRate)}`}
+                color={landingRate >= 1 ? "green" : "amber"}
+              />
+              <KPICard
+                label="達成差異（着地 − 予算）"
+                value={`${diffLanding >= 0 ? "+" : ""}${formatCurrency(diffLanding)}`}
+                sub={
+                  diffLanding >= 0
+                    ? "予算達成見込み 🎉"
+                    : `予算未達 ${formatPercent(Math.abs(diffLanding) / Math.max(totalBudget, 1))}`
+                }
+                color={diffLanding >= 0 ? "green" : "red"}
+              />
+            </div>
+
+            {/* 月別比較グラフ */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold">月別：予算 vs 実績 vs 売上予定</h2>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    取引先別月別予算の合計 / 案件別月別フォーキャストの合計 / 請求実績
+                  </p>
+                </div>
+                <div className="text-right text-xs space-y-0.5">
+                  <div>
+                    予算 <strong className="text-slate-700">{formatCurrency(totalBudget)}</strong>
+                  </div>
+                  <div>
+                    実績 <strong style={{ color: "#3b82f6" }}>{formatCurrency(totalActual)}</strong>{" "}
+                    （達成率 <strong>{formatPercent(achievementRate)}</strong>）
+                  </div>
+                  <div>
+                    着地見込み{" "}
+                    <strong style={{ color: landingRate >= 1 ? "#10b981" : "#f59e0b" }}>
+                      {formatCurrency(totalLanding)}
+                    </strong>{" "}
+                    （達成率 <strong>{formatPercent(landingRate)}</strong>）
+                  </div>
+                </div>
+              </div>
+
+              {(() => {
+                const max = Math.max(
+                  ...Object.values(byMonth).map((v) => Math.max(v.budget, v.actual, v.forecast)),
+                  1
+                );
+                return (
+                  <div className="flex items-end gap-2 h-44">
+                    {months.map((m) => {
+                      const { budget, actual, forecast } = byMonth[m];
+                      const bH = (budget / max) * 100;
+                      const aH = (actual / max) * 100;
+                      const fH = (forecast / max) * 100;
+                      const isCurrent = m === thisMonth;
+                      return (
+                        <div key={m} className="flex-1 flex flex-col items-center gap-1">
+                          <div className="w-full h-36 flex items-end justify-center gap-0.5">
+                            <div
+                              className="flex-1 bg-slate-300 rounded-t-sm min-h-[1px]"
+                              style={{ height: `${bH}%` }}
+                              title={`予算: ${formatCurrencyFull(budget)}`}
+                            />
+                            <div
+                              className="flex-1 bg-blue-500 rounded-t-sm min-h-[1px]"
+                              style={{ height: `${aH}%` }}
+                              title={`実績: ${formatCurrencyFull(actual)}`}
+                            />
+                            <div
+                              className="flex-1 bg-amber-400 rounded-t-sm min-h-[1px]"
+                              style={{ height: `${fH}%` }}
+                              title={`売上予定: ${formatCurrencyFull(forecast)}`}
+                            />
+                          </div>
+                          <div
+                            className={`text-[10px] ${
+                              isCurrent ? "text-blue-600 font-bold" : "text-slate-500"
+                            }`}
+                          >
+                            {m.slice(5)}月
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              <div className="flex gap-4 mt-3 text-[11px] text-slate-500">
+                <span>
+                  <span className="inline-block w-3 h-2 bg-slate-300 rounded-sm mr-1" />
+                  予算（取引先別月別）
+                </span>
+                <span>
+                  <span className="inline-block w-3 h-2 bg-blue-500 rounded-sm mr-1" />
+                  実績（請求済）
+                </span>
+                <span>
+                  <span className="inline-block w-3 h-2 bg-amber-400 rounded-sm mr-1" />
+                  売上予定（案件別月別）
+                </span>
+              </div>
+
+              {totalBudget === 0 && (
+                <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+                  ⚠️ まだ予算が1件も登録されていません。<br />
+                  取引先詳細画面の <strong>「💰 月別予算」</strong> セクションで、各取引先の月別売上目標を登録してください。
+                </div>
+              )}
+            </div>
+
+            {/* 月次明細テーブル */}
+            <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6 overflow-x-auto">
+              <h2 className="text-sm font-semibold mb-3">月次明細</h2>
+              <table className="w-full text-xs">
+                <thead className="bg-slate-50">
+                  <tr className="border-b border-slate-200">
+                    <th className="px-2 py-2 text-left text-slate-500">月</th>
+                    <th className="px-2 text-right text-slate-500">予算</th>
+                    <th className="px-2 text-right text-slate-500">実績</th>
+                    <th className="px-2 text-right text-slate-500">売上予定</th>
+                    <th className="px-2 text-right text-slate-500">予算 − 実績</th>
+                    <th className="px-2 text-right text-slate-500">実績達成率</th>
+                    <th className="px-2 text-right text-slate-500">予算 − (実績+予定)</th>
+                    <th className="px-2 text-right text-slate-500">着地達成率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {months.map((m) => {
+                    const { budget, actual, forecast } = byMonth[m];
+                    const landingMonth = actual + (m > thisMonth ? forecast : Math.max(forecast, actual) - actual);
+                    const landingAdj = m > thisMonth ? actual + forecast : Math.max(actual + forecast, actual);
+                    const diffA = budget - actual;
+                    const diffL = budget - landingAdj;
+                    const rateA = budget > 0 ? actual / budget : 0;
+                    const rateL = budget > 0 ? landingAdj / budget : 0;
+                    const isCurrent = m === thisMonth;
+                    return (
+                      <tr
+                        key={m}
+                        className={`border-b border-slate-100 ${
+                          isCurrent ? "bg-blue-50 font-semibold" : ""
+                        }`}
+                      >
+                        <td className="px-2 py-1.5">{m}{isCurrent && " (当月)"}</td>
+                        <td className="px-2 text-right">{formatCurrencyFull(budget)}</td>
+                        <td className="px-2 text-right text-blue-600">{formatCurrencyFull(actual)}</td>
+                        <td className="px-2 text-right text-amber-600">{formatCurrencyFull(forecast)}</td>
+                        <td className={`px-2 text-right ${diffA > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                          {diffA >= 0 ? "+" : ""}{formatCurrencyFull(-diffA)}
+                        </td>
+                        <td className="px-2 text-right">{budget > 0 ? formatPercent(rateA) : "—"}</td>
+                        <td className={`px-2 text-right ${diffL > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                          {diffL >= 0 ? "+" : ""}{formatCurrencyFull(-diffL)}
+                        </td>
+                        <td className={`px-2 text-right font-medium ${rateL >= 1 ? "text-emerald-600" : "text-amber-600"}`}>
+                          {budget > 0 ? formatPercent(rateL) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="bg-slate-100 font-bold">
+                    <td className="px-2 py-2">年間合計</td>
+                    <td className="px-2 text-right">{formatCurrencyFull(totalBudget)}</td>
+                    <td className="px-2 text-right text-blue-600">{formatCurrencyFull(totalActual)}</td>
+                    <td className="px-2 text-right text-amber-600">{formatCurrencyFull(totalFutureForecast + totalCurrentMonthForecast)}</td>
+                    <td className={`px-2 text-right ${diffActual < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                      {diffActual >= 0 ? "+" : ""}{formatCurrencyFull(diffActual)}
+                    </td>
+                    <td className="px-2 text-right">{formatPercent(achievementRate)}</td>
+                    <td className={`px-2 text-right ${diffLanding < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                      {diffLanding >= 0 ? "+" : ""}{formatCurrencyFull(diffLanding)}
+                    </td>
+                    <td className={`px-2 text-right ${landingRate >= 1 ? "text-emerald-600" : "text-amber-600"}`}>
+                      {formatPercent(landingRate)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </>
+        );
+      })()}
+
+      {/* 補助KPI（運用状況） */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <KPICard
-          label="進行中案件"
-          value={`${activeProjects.length}件`}
-          sub="失注・保留を除く"
-        />
+        <KPICard label="進行中案件" value={`${activeProjects.length}件`} sub="失注・保留を除く" />
         <KPICard
           label={`今月の入金予定（${thisMonth}）`}
           value={formatCurrency(thisMonthInflow)}
@@ -123,9 +330,9 @@ export default async function DashboardPage() {
           color="emerald"
         />
         <KPICard
-          label="年度予算進捗"
-          value={formatPercent(payment.invoiced / annualBudget)}
-          sub={`売上 ${formatCurrency(payment.invoiced)} / 予算 ${formatCurrency(annualBudget)}`}
+          label="入金率"
+          value={formatPercent(payment.rate)}
+          sub={`請求 ${formatCurrency(payment.invoiced)} / 入金 ${formatCurrency(payment.paid)}`}
         />
         <KPICard
           label="入金遅延"
@@ -174,88 +381,6 @@ export default async function DashboardPage() {
           <span><span className="inline-block w-3 h-2 bg-red-400 rounded-sm mr-1" />出金予定</span>
         </div>
       </div>
-
-      {/* 月別売上見込み vs 実績 */}
-      {(() => {
-        // 月別の見込みと実績を集計
-        const byMonth: Record<string, { forecast: number; actual: number }> = {};
-        months.forEach((m) => (byMonth[m] = { forecast: 0, actual: 0 }));
-        for (const p of projects) {
-          for (const f of p.forecasts) {
-            if (byMonth[f.yearMonth]) byMonth[f.yearMonth].forecast += f.amount;
-          }
-          // 実績：請求日の月に請求額を計上
-          for (const inv of p.invoices) {
-            const ym = `${inv.invoiceDate.getUTCFullYear()}-${String(
-              inv.invoiceDate.getUTCMonth() + 1
-            ).padStart(2, "0")}`;
-            if (byMonth[ym]) byMonth[ym].actual += inv.amount;
-          }
-        }
-        const totalForecast = Object.values(byMonth).reduce((s, v) => s + v.forecast, 0);
-        const totalActual = Object.values(byMonth).reduce((s, v) => s + v.actual, 0);
-        const max = Math.max(
-          ...Object.values(byMonth).map((v) => Math.max(v.forecast, v.actual)),
-          1
-        );
-        return (
-          <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h2 className="text-sm font-semibold">月別売上：見込み vs 実績（案件集計）</h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  各案件の月別見込みを合計したもの。案件詳細画面で見込みを設定してください。
-                </p>
-              </div>
-              <div className="text-right text-xs">
-                <div>年間合計見込み <strong>{formatCurrency(totalForecast)}</strong></div>
-                <div>年間実績（請求） <strong style={{ color: "#3b82f6" }}>{formatCurrency(totalActual)}</strong></div>
-              </div>
-            </div>
-            <div className="flex items-end gap-2 h-40">
-              {months.map((m) => {
-                const { forecast, actual } = byMonth[m];
-                const fH = (forecast / max) * 100;
-                const aH = (actual / max) * 100;
-                const isCurrent = m === thisMonth;
-                return (
-                  <div key={m} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="w-full h-32 flex items-end justify-center gap-0.5">
-                      <div
-                        className="flex-1 bg-slate-300 rounded-t-sm min-h-[1px]"
-                        style={{ height: `${fH}%` }}
-                        title={`見込み: ${formatCurrencyFull(forecast)}`}
-                      />
-                      <div
-                        className="flex-1 bg-blue-500 rounded-t-sm min-h-[1px]"
-                        style={{ height: `${aH}%` }}
-                        title={`実績: ${formatCurrencyFull(actual)}`}
-                      />
-                    </div>
-                    <div
-                      className={`text-[10px] ${
-                        isCurrent ? "text-blue-600 font-bold" : "text-slate-500"
-                      }`}
-                    >
-                      {m.slice(5)}月
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex gap-4 mt-3 text-[11px] text-slate-500">
-              <span>
-                <span className="inline-block w-3 h-2 bg-slate-300 rounded-sm mr-1" />
-                見込み（案件月次フォーキャスト）
-              </span>
-              <span>
-                <span className="inline-block w-3 h-2 bg-blue-500 rounded-sm mr-1" />
-                実績（請求済）
-              </span>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* 契約ファネル + 案件サマリ */}
       <div className="grid grid-cols-3 gap-4 mb-6">

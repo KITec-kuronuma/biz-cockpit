@@ -12,7 +12,7 @@ datasource db {
 
 // 取引先企業
 model Client {
-  id        String    @id @default(cuid())
+  id        String                @id @default(cuid())
   name      String
   address   String?
   phone     String?
@@ -22,8 +22,23 @@ model Client {
   note      String?
   contacts  Contact[]
   projects  Project[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  budgets   ClientMonthlyBudget[]
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+}
+
+// 取引先 × 月別 予算（当期予算の源泉）
+model ClientMonthlyBudget {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  yearMonth String   // YYYY-MM
+  amount    Int
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, yearMonth])
 }
 
 // 担当者・関係者

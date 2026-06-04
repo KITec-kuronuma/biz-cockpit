@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { formatCurrencyFull, formatDate } from "@/lib/format";
 import { STATUS_LABELS, SEND_FLAG_LABELS } from "@/lib/types";
 import { addContact, deleteContact, updateClient, deleteClient } from "../actions";
+import { upsertClientBudget, deleteClientBudget } from "../budgetActions";
 import { DeleteClientButton } from "@/components/clients/DeleteClientButton";
 import Link from "next/link";
 
@@ -16,6 +17,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
         include: { invoices: { include: { payments: true } } },
         orderBy: { updatedAt: "desc" },
       },
+      budgets: { orderBy: { yearMonth: "asc" } },
     },
   });
   if (!client) return notFound();
@@ -133,6 +135,86 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           <Info label="入金済" value={formatCurrencyFull(totalPaid)} />
           <Info label="受注案件" value={`${wonCount}件 / ${client.projects.length}件中`} />
         </div>
+      </div>
+
+      {/* 月別予算 */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4">
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-sm font-semibold">💰 月別予算（売上目標） ({client.budgets.length}件)</h2>
+          <span className="text-xs text-slate-500">
+            年間合計 <strong className="text-blue-600">{formatCurrencyFull(client.budgets.reduce((s, b) => s + b.amount, 0))}</strong>
+          </span>
+        </div>
+        <table className="w-full text-sm mb-4">
+          <thead>
+            <tr className="text-left text-xs text-slate-500 border-b border-slate-200">
+              <th className="py-2">年月</th>
+              <th className="text-right">予算額</th>
+              <th>メモ</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {client.budgets.length === 0 && (
+              <tr>
+                <td colSpan={4} className="py-4 text-center text-xs text-slate-400">
+                  月別予算はまだ登録されていません。下のフォームから登録してください。
+                </td>
+              </tr>
+            )}
+            {client.budgets.map((b) => (
+              <tr key={b.id} className="border-b border-slate-100">
+                <td className="py-2 text-xs">{b.yearMonth}</td>
+                <td className="text-right font-medium">{formatCurrencyFull(b.amount)}</td>
+                <td className="text-xs text-slate-600">{b.note ?? "—"}</td>
+                <td>
+                  <form action={deleteClientBudget.bind(null, b.id, client.id)} className="inline">
+                    <button className="text-xs text-red-600 hover:underline">削除</button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <form action={upsertClientBudget} className="flex gap-2 items-end border-t pt-3 flex-wrap">
+          <input type="hidden" name="clientId" value={client.id} />
+          <div>
+            <label className="text-[10px] text-slate-500 block">年月（YYYY-MM）</label>
+            <input
+              type="text"
+              name="yearMonth"
+              placeholder="2026-07"
+              pattern="\d{4}-\d{2}"
+              required
+              className="border border-slate-200 rounded px-2 py-1 text-xs w-24"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 block">予算額</label>
+            <input
+              type="number"
+              name="amount"
+              required
+              className="border border-slate-200 rounded px-2 py-1 text-xs w-32"
+            />
+          </div>
+          <div className="flex-1 min-w-32">
+            <label className="text-[10px] text-slate-500 block">メモ（任意）</label>
+            <input
+              type="text"
+              name="note"
+              placeholder="新規開発見込み 等"
+              className="border border-slate-200 rounded px-2 py-1 text-xs w-full"
+            />
+          </div>
+          <button className="px-3 py-1 bg-blue-600 text-white rounded text-xs">
+            ＋ 予算追加 / 更新
+          </button>
+        </form>
+        <p className="text-[11px] text-slate-400 mt-2">
+          💡 各取引先の月別予算がダッシュボードで集計され、年間予算となります。
+        </p>
       </div>
 
       {/* 担当者 */}

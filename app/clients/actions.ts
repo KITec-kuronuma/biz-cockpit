@@ -7,32 +7,52 @@ import { z } from "zod";
 
 const clientSchema = z.object({
   name: z.string().min(1, "会社名は必須です"),
+  address: z.string().optional(),
+  phone: z.string().optional(),
+  fax: z.string().optional(),
+  website: z.string().optional(),
+  industry: z.string().optional(),
   note: z.string().optional(),
 });
 
+function toData(d: z.infer<typeof clientSchema>) {
+  return {
+    name: d.name,
+    address: d.address || null,
+    phone: d.phone || null,
+    fax: d.fax || null,
+    website: d.website || null,
+    industry: d.industry || null,
+    note: d.note || null,
+  };
+}
+
 export async function createClient(formData: FormData) {
-  const data = clientSchema.parse({
-    name: formData.get("name"),
-    note: formData.get("note") || undefined,
-  });
-  const created = await prisma.client.create({
-    data: { name: data.name, note: data.note ?? null },
-  });
+  const data = clientSchema.parse(Object.fromEntries(formData.entries()));
+  const created = await prisma.client.create({ data: toData(data) });
   revalidatePath("/clients");
   redirect(`/clients/${created.id}`);
 }
 
 export async function updateClient(clientId: string, formData: FormData) {
-  const data = clientSchema.parse({
-    name: formData.get("name"),
-    note: formData.get("note") || undefined,
-  });
-  await prisma.client.update({
-    where: { id: clientId },
-    data: { name: data.name, note: data.note ?? null },
-  });
+  const data = clientSchema.parse(Object.fromEntries(formData.entries()));
+  await prisma.client.update({ where: { id: clientId }, data: toData(data) });
   revalidatePath(`/clients/${clientId}`);
   revalidatePath("/clients");
+}
+
+export async function deleteClient(clientId: string) {
+  // 関連案件があれば削除拒否
+  const projectCount = await prisma.project.count({ where: { clientId } });
+  if (projectCount > 0) {
+    throw new Error(
+      `この取引先には ${projectCount}件の案件が紐づいているため削除できません。先に案件を削除または別の取引先に移動してください。`
+    );
+  }
+  // 担当者は CASCADE で自動削除される
+  await prisma.client.delete({ where: { id: clientId } });
+  revalidatePath("/clients");
+  redirect("/clients");
 }
 
 const contactSchema = z.object({

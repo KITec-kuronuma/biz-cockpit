@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { formatCurrencyFull, formatDate } from "@/lib/format";
 import { STATUS_LABELS, SEND_FLAG_LABELS } from "@/lib/types";
-import { addContact, deleteContact, updateClient } from "../actions";
+import { addContact, deleteContact, updateClient, deleteClient } from "../actions";
+import { DeleteClientButton } from "@/components/clients/DeleteClientButton";
 import Link from "next/link";
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -41,32 +42,92 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
       </Link>
 
       <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4">
-        <form action={updateBound} className="flex gap-3 items-end">
-          <div className="flex-1">
-            <label className="text-[10px] text-slate-500 block mb-1">会社名</label>
+        <div className="flex justify-between items-start mb-4">
+          <h1 className="text-lg font-bold">取引先情報</h1>
+          <DeleteClientButton
+            action={deleteClient.bind(null, client.id)}
+            projectCount={client.projects.length}
+          />
+        </div>
+
+        <form action={updateBound} className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className="text-[10px] text-slate-500 block mb-1">会社名 *</label>
             <input
               type="text"
               name="name"
               defaultValue={client.name}
               required
-              className="w-full border border-slate-200 rounded px-3 py-2 text-lg font-semibold"
+              className="w-full border border-slate-200 rounded px-3 py-2 text-base font-semibold"
             />
           </div>
-          <div className="flex-1">
-            <label className="text-[10px] text-slate-500 block mb-1">備考</label>
+          <div>
+            <label className="text-[10px] text-slate-500 block mb-1">業種</label>
             <input
               type="text"
-              name="note"
-              defaultValue={client.note ?? ""}
+              name="industry"
+              defaultValue={client.industry ?? ""}
+              placeholder="製造業 / 小売業 等"
               className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
             />
           </div>
-          <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs">
-            更新
-          </button>
+          <div>
+            <label className="text-[10px] text-slate-500 block mb-1">ウェブサイト</label>
+            <input
+              type="text"
+              name="website"
+              defaultValue={client.website ?? ""}
+              placeholder="https://example.co.jp"
+              className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="text-[10px] text-slate-500 block mb-1">代表住所</label>
+            <input
+              type="text"
+              name="address"
+              defaultValue={client.address ?? ""}
+              placeholder="東京都千代田区..."
+              className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 block mb-1">代表電話番号</label>
+            <input
+              type="text"
+              name="phone"
+              defaultValue={client.phone ?? ""}
+              placeholder="03-1234-5678"
+              className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 block mb-1">FAX</label>
+            <input
+              type="text"
+              name="fax"
+              defaultValue={client.fax ?? ""}
+              placeholder="03-1234-5679"
+              className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="text-[10px] text-slate-500 block mb-1">備考</label>
+            <textarea
+              name="note"
+              defaultValue={client.note ?? ""}
+              rows={2}
+              className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="col-span-2 flex justify-end">
+            <button className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">
+              💾 更新
+            </button>
+          </div>
         </form>
 
-        <div className="grid grid-cols-4 gap-3 mt-4">
+        <div className="grid grid-cols-4 gap-3 mt-5 pt-5 border-t border-slate-200">
           <Info label="累計契約額" value={formatCurrencyFull(totalContract)} highlight />
           <Info label="請求合計" value={formatCurrencyFull(totalInvoiced)} />
           <Info label="入金済" value={formatCurrencyFull(totalPaid)} />

@@ -9,6 +9,7 @@ import {
 } from "@/lib/types";
 import Link from "next/link";
 import { addInvoice, deleteInvoice, addPayment, addCost, deleteCost } from "./actions";
+import { addForecast, deleteForecast } from "./forecastActions";
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -18,6 +19,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       client: true,
       invoices: { include: { payments: true }, orderBy: { invoiceDate: "asc" } },
       costs: { orderBy: { yearMonth: "asc" } },
+      forecasts: { orderBy: { yearMonth: "asc" } },
     },
   });
   if (!project) return notFound();
@@ -199,6 +201,97 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           </div>
           <button className="px-3 py-1 bg-blue-600 text-white rounded text-xs">＋ 請求追加</button>
         </form>
+      </div>
+
+      {/* 月別売上見込み */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4">
+        <h2 className="text-sm font-semibold mb-3">📈 月別売上見込み ({project.forecasts.length}件)</h2>
+        <table className="w-full text-sm mb-4">
+          <thead>
+            <tr className="text-left text-xs text-slate-500 border-b border-slate-200">
+              <th className="py-2">年月</th>
+              <th>見込額</th>
+              <th>メモ</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {project.forecasts.length === 0 && (
+              <tr>
+                <td colSpan={4} className="py-4 text-center text-xs text-slate-400">
+                  月別見込みはまだ登録されていません
+                </td>
+              </tr>
+            )}
+            {project.forecasts.map((f) => (
+              <tr key={f.id} className="border-b border-slate-100">
+                <td className="py-2 text-xs">{f.yearMonth}</td>
+                <td className="font-medium">{formatCurrencyFull(f.amount)}</td>
+                <td className="text-xs text-slate-600">{f.note ?? "—"}</td>
+                <td>
+                  <form action={deleteForecast.bind(null, f.id, project.id)} className="inline">
+                    <button className="text-xs text-red-600 hover:underline">削除</button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+            {project.forecasts.length > 0 && (
+              <tr className="bg-slate-50 font-bold">
+                <td className="py-2 text-xs">合計</td>
+                <td>
+                  {formatCurrencyFull(project.forecasts.reduce((s, f) => s + f.amount, 0))}
+                </td>
+                <td colSpan={2} className="text-[11px] text-slate-500">
+                  契約金額 {formatCurrencyFull(project.contractAmount)} との差：
+                  <strong>
+                    {formatCurrencyFull(
+                      project.forecasts.reduce((s, f) => s + f.amount, 0) - project.contractAmount
+                    )}
+                  </strong>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        <form action={addForecast} className="flex gap-2 items-end border-t pt-3 flex-wrap">
+          <input type="hidden" name="projectId" value={project.id} />
+          <div>
+            <label className="text-[10px] text-slate-500 block">年月（YYYY-MM）</label>
+            <input
+              type="text"
+              name="yearMonth"
+              placeholder="2026-07"
+              pattern="\d{4}-\d{2}"
+              required
+              className="border border-slate-200 rounded px-2 py-1 text-xs w-24"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-500 block">見込額</label>
+            <input
+              type="number"
+              name="amount"
+              required
+              className="border border-slate-200 rounded px-2 py-1 text-xs w-32"
+            />
+          </div>
+          <div className="flex-1 min-w-32">
+            <label className="text-[10px] text-slate-500 block">メモ（任意）</label>
+            <input
+              type="text"
+              name="note"
+              placeholder="フェーズ1完納見込み 等"
+              className="border border-slate-200 rounded px-2 py-1 text-xs w-full"
+            />
+          </div>
+          <button className="px-3 py-1 bg-blue-600 text-white rounded text-xs">
+            ＋ 月別見込み追加 / 更新
+          </button>
+        </form>
+        <p className="text-[11px] text-slate-400 mt-2">
+          💡 同じ年月で再登録すると上書きされます。ダッシュボードと財務画面に集計されます。
+        </p>
       </div>
 
       {/* 月次原価 */}

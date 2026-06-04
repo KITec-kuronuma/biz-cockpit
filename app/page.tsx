@@ -14,6 +14,7 @@ export default async function DashboardPage() {
         client: true,
         invoices: { include: { payments: true } },
         costs: true,
+        forecasts: true,
       },
     }),
   ]);
@@ -173,6 +174,88 @@ export default async function DashboardPage() {
           <span><span className="inline-block w-3 h-2 bg-red-400 rounded-sm mr-1" />出金予定</span>
         </div>
       </div>
+
+      {/* 月別売上見込み vs 実績 */}
+      {(() => {
+        // 月別の見込みと実績を集計
+        const byMonth: Record<string, { forecast: number; actual: number }> = {};
+        months.forEach((m) => (byMonth[m] = { forecast: 0, actual: 0 }));
+        for (const p of projects) {
+          for (const f of p.forecasts) {
+            if (byMonth[f.yearMonth]) byMonth[f.yearMonth].forecast += f.amount;
+          }
+          // 実績：請求日の月に請求額を計上
+          for (const inv of p.invoices) {
+            const ym = `${inv.invoiceDate.getUTCFullYear()}-${String(
+              inv.invoiceDate.getUTCMonth() + 1
+            ).padStart(2, "0")}`;
+            if (byMonth[ym]) byMonth[ym].actual += inv.amount;
+          }
+        }
+        const totalForecast = Object.values(byMonth).reduce((s, v) => s + v.forecast, 0);
+        const totalActual = Object.values(byMonth).reduce((s, v) => s + v.actual, 0);
+        const max = Math.max(
+          ...Object.values(byMonth).map((v) => Math.max(v.forecast, v.actual)),
+          1
+        );
+        return (
+          <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="text-sm font-semibold">月別売上：見込み vs 実績（案件集計）</h2>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  各案件の月別見込みを合計したもの。案件詳細画面で見込みを設定してください。
+                </p>
+              </div>
+              <div className="text-right text-xs">
+                <div>年間合計見込み <strong>{formatCurrency(totalForecast)}</strong></div>
+                <div>年間実績（請求） <strong style={{ color: "#3b82f6" }}>{formatCurrency(totalActual)}</strong></div>
+              </div>
+            </div>
+            <div className="flex items-end gap-2 h-40">
+              {months.map((m) => {
+                const { forecast, actual } = byMonth[m];
+                const fH = (forecast / max) * 100;
+                const aH = (actual / max) * 100;
+                const isCurrent = m === thisMonth;
+                return (
+                  <div key={m} className="flex-1 flex flex-col items-center gap-1">
+                    <div className="w-full h-32 flex items-end justify-center gap-0.5">
+                      <div
+                        className="flex-1 bg-slate-300 rounded-t-sm min-h-[1px]"
+                        style={{ height: `${fH}%` }}
+                        title={`見込み: ${formatCurrencyFull(forecast)}`}
+                      />
+                      <div
+                        className="flex-1 bg-blue-500 rounded-t-sm min-h-[1px]"
+                        style={{ height: `${aH}%` }}
+                        title={`実績: ${formatCurrencyFull(actual)}`}
+                      />
+                    </div>
+                    <div
+                      className={`text-[10px] ${
+                        isCurrent ? "text-blue-600 font-bold" : "text-slate-500"
+                      }`}
+                    >
+                      {m.slice(5)}月
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-4 mt-3 text-[11px] text-slate-500">
+              <span>
+                <span className="inline-block w-3 h-2 bg-slate-300 rounded-sm mr-1" />
+                見込み（案件月次フォーキャスト）
+              </span>
+              <span>
+                <span className="inline-block w-3 h-2 bg-blue-500 rounded-sm mr-1" />
+                実績（請求済）
+              </span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 契約ファネル + 案件サマリ */}
       <div className="grid grid-cols-3 gap-4 mb-6">

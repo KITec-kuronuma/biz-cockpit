@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import "dotenv/config";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
@@ -6,20 +7,20 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 function createPrisma(): PrismaClient {
   const url = process.env.DATABASE_URL ?? "";
 
+  if (!url) {
+    throw new Error("DATABASE_URL environment variable is not set");
+  }
+
+  // PostgreSQL（本番・Supabase）
   if (url.startsWith("postgres://") || url.startsWith("postgresql://")) {
-    // 本番（Supabase / その他 PostgreSQL）
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { PrismaPg } = require("@prisma/adapter-pg");
     const adapter = new PrismaPg({ connectionString: url });
     return new PrismaClient({ adapter, log: ["error", "warn"] });
   }
 
-  // ローカル開発（SQLite）
+  // SQLite（ローカル開発のみ）
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { PrismaBetterSqlite3 } = require("@prisma/adapter-better-sqlite3");
-  const adapter = new PrismaBetterSqlite3({
-    url: url || "file:./dev.db",
-  });
+  const adapter = new PrismaBetterSqlite3({ url });
   return new PrismaClient({ adapter, log: ["error", "warn"] });
 }
 

@@ -1,0 +1,147 @@
+// biz-cockpit データモデル
+// 上長仕様（v1.0）準拠：Client / Contact / Project / Invoice / Payment / CostMonthly / ProjectContact / Setting
+// 補助：User（権限管理）/ Activity（活動履歴）
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 取引先企業
+model Client {
+  id        String    @id @default(cuid())
+  name      String
+  note      String?
+  contacts  Contact[]
+  projects  Project[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// 担当者・関係者
+model Contact {
+  id        String           @id @default(cuid())
+  clientId  String
+  client    Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  role      String?
+  email     String?
+  phone     String?
+  // 補助：送付区分タグ（カンマ区切り：quote,invoice,contract,decision）
+  sendFlags String?
+  projects  ProjectContact[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
+// 案件（中核）
+model Project {
+  id               String           @id @default(cuid())
+  clientId         String
+  client           Client           @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  title            String
+  contractDate     DateTime?
+  deliveryDate     DateTime?
+  contractAmount   Int              @default(0)
+  taxRate          Int              @default(10)
+  licenseFee       Int?
+  licenseStartDate DateTime?
+  licenseCycle     String? // MONTHLY / YEARLY / ONE_TIME
+  status           String           @default("LEAD") // LEAD/NEGOTIATING/WON/LOST/ON_HOLD
+  progress         String           @default("NOT_STARTED") // NOT_STARTED/IN_PROGRESS/DELIVERED/COMPLETED
+  // 補助：12段階詳細フェーズ
+  detailPhase      String?
+  // 補助：期初予想納品月（YYYY-MM）
+  initialForecast  String?
+  note             String?
+  invoices         Invoice[]
+  costs            CostMonthly[]
+  contacts         ProjectContact[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+// 請求（1案件 1:多）
+model Invoice {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invoiceDate DateTime
+  amount      Int
+  dueDate     DateTime?
+  status      String    @default("NOT_ISSUED") // NOT_ISSUED/ISSUED/PAID
+  payments    Payment[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// 入金（1請求 1:多）
+model Payment {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  paymentDate DateTime
+  amount      Int
+  createdAt   DateTime @default(now())
+}
+
+// 月次原価
+model CostMonthly {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  yearMonth String
+  amount    Int
+  category  String?
+  createdAt DateTime @default(now())
+}
+
+// 案件関係者（多対多中間）
+model ProjectContact {
+  projectId String
+  contactId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, contactId])
+}
+
+// アプリ設定（単一行）
+model Setting {
+  id                   String @id @default("singleton")
+  fiscalStartMonth     Int    @default(4)
+  targetContractAmount Int    @default(100000000)
+  targetContractCount  Int    @default(5)
+  defaultRevenueBasis  String @default("DELIVERY")
+  annualBudgetRevenue  Int    @default(120000000)
+  taxRate              Int    @default(10)
+}
+
+// 補助：ユーザー（権限管理）
+model User {
+  id         String   @id @default(cuid())
+  name       String
+  email      String   @unique
+  department String?
+  role       String   @default("MEMBER") // ADMIN/MANAGER/MEMBER
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}
+
+// 補助：活動履歴
+model Activity {
+  id          String    @id @default(cuid())
+  date        DateTime
+  type        String // CALL/EMAIL/VISIT/ONLINE
+  clientId    String?
+  contactId   String?
+  projectId   String?
+  content     String
+  nextAction  String?
+  nextDate    DateTime?
+  ownerUserId String?
+  createdAt   DateTime  @default(now())
+}

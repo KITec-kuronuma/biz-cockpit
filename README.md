@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# biz-cockpit
 
-## Getting Started
+業務管理ダッシュボード（案件・契約・請求・入金・原価を一元管理）
 
-First, run the development server:
+## 技術スタック
+
+- **Next.js 16** (App Router) + **TypeScript** + **Tailwind CSS 4**
+- **Prisma 7** + **PostgreSQL**（本番）/ **SQLite**（ローカル開発）
+- **Vercel**（ホスティング）+ **Supabase**（DB）
+
+## ローカル開発
+
+`.env` に Supabase の `DATABASE_URL` を設定後：
 
 ```bash
+npm install
+npx prisma generate
+npx prisma db push       # スキーマからテーブル作成
+npx tsx prisma/seed.ts   # サンプルデータ投入
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+http://localhost:3000 で起動します。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 本番デプロイ手順（Vercel + Supabase）
 
-## Learn More
+### 1. Supabase でデータベース作成
 
-To learn more about Next.js, take a look at the following resources:
+1. https://supabase.com にサインアップ
+2. **New Project** → Project 名・パスワードを設定（リージョンは **Northeast Asia (Tokyo)** 推奨）
+3. プロジェクト作成後、**Project Settings → Database → Connection string → URI** をコピー
+4. パスワード部分を実際のパスワードに置換しておく
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 2. GitHub にコードをプッシュ
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/[YOUR-USER]/biz-cockpit.git
+git push -u origin main
+```
 
-## Deploy on Vercel
+### 3. Vercel にデプロイ
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. https://vercel.com にサインアップ（GitHubでログイン推奨）
+2. **Add New → Project** → GitHubリポジトリを選択
+3. **Environment Variables** に以下を追加：
+   - `DATABASE_URL` = Supabaseで取得したURI
+4. **Deploy** をクリック
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 4. データベース初期化・シード
+
+ローカル環境の `.env` に Supabase の `DATABASE_URL` を設定し：
+
+```bash
+npx prisma db push      # テーブル作成
+npx tsx prisma/seed.ts  # 初期データ投入
+```
+
+### 5. 動作確認
+
+Vercel が発行した URL（例: `https://biz-cockpit.vercel.app`）にアクセス。
+
+---
+
+## 主な画面
+
+| URL | 内容 |
+|-----|------|
+| `/` | ダッシュボード（KPI・契約ファネル・年間タイムライン） |
+| `/projects` | 案件一覧 |
+| `/projects/[id]` | 案件詳細（請求・入金・原価編集） |
+| `/clients` | 取引先一覧 |
+| `/clients/[id]` | 取引先詳細（担当者編集） |
+| `/finance` | 月次PL / キャッシュフロー |
+| `/settings` | 設定 |
+| `/contacts` | 担当者一覧 |
+| `/forecast` | 売上見込タイムライン |
+| `/contracts` | ライセンス契約一覧 |
+| `/activities` | 活動履歴 |
+| `/users` | ユーザー管理 |
+
+## データモデル
+
+- **Client** 取引先企業
+- **Contact** 担当者（送付区分フラグ付き）
+- **Project** 案件（中核）
+- **Invoice** 請求（1案件 1:多）
+- **Payment** 入金（1請求 1:多）
+- **CostMonthly** 月次原価
+- **Setting** アプリ設定
+- **User** ユーザー（権限管理）
+- **Activity** 活動履歴

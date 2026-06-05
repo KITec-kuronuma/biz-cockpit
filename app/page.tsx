@@ -167,25 +167,25 @@ export default async function DashboardPage() {
             <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <h2 className="text-sm font-semibold">月別：予算 vs 実績 vs 売上予定</h2>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
+                  <h2 className="text-base font-bold text-slate-900">月別：予算 vs 実績 vs 売上予定</h2>
+                  <p className="text-xs text-slate-600 mt-0.5">
                     取引先別月別予算の合計 / 案件別月別フォーキャストの合計 / 請求実績
                   </p>
                 </div>
-                <div className="text-right text-xs space-y-0.5">
-                  <div>
-                    予算 <strong className="text-slate-700">{formatCurrency(totalBudget)}</strong>
+                <div className="text-right text-sm space-y-0.5">
+                  <div className="text-slate-700">
+                    予算 <strong className="text-slate-900">{formatCurrency(totalBudget)}</strong>
                   </div>
-                  <div>
-                    実績 <strong style={{ color: "#3b82f6" }}>{formatCurrency(totalActual)}</strong>{" "}
-                    （達成率 <strong>{formatPercent(achievementRate)}</strong>）
+                  <div className="text-slate-700">
+                    実績 <strong className="text-blue-700">{formatCurrency(totalActual)}</strong>{" "}
+                    （達成率 <strong className="text-slate-900">{formatPercent(achievementRate)}</strong>）
                   </div>
-                  <div>
+                  <div className="text-slate-700">
                     着地見込み{" "}
-                    <strong style={{ color: landingRate >= 1 ? "#10b981" : "#f59e0b" }}>
+                    <strong className={landingRate >= 1 ? "text-emerald-700" : "text-amber-700"}>
                       {formatCurrency(totalLanding)}
                     </strong>{" "}
-                    （達成率 <strong>{formatPercent(landingRate)}</strong>）
+                    （達成率 <strong className="text-slate-900">{formatPercent(landingRate)}</strong>）
                   </div>
                 </div>
               </div>
@@ -223,8 +223,8 @@ export default async function DashboardPage() {
                             />
                           </div>
                           <div
-                            className={`text-[10px] ${
-                              isCurrent ? "text-blue-600 font-bold" : "text-slate-500"
+                            className={`text-xs font-semibold ${
+                              isCurrent ? "text-blue-700" : "text-slate-700"
                             }`}
                           >
                             {m.slice(5)}月
@@ -236,7 +236,7 @@ export default async function DashboardPage() {
                 );
               })()}
 
-              <div className="flex gap-4 mt-3 text-[11px] text-slate-500">
+              <div className="flex gap-4 mt-3 text-xs text-slate-700 font-medium">
                 <span>
                   <span className="inline-block w-3 h-2 bg-slate-300 rounded-sm mr-1" />
                   予算（取引先別月別）
@@ -260,25 +260,24 @@ export default async function DashboardPage() {
             </div>
 
             {/* 月次明細テーブル */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6 overflow-x-auto">
-              <h2 className="text-sm font-semibold mb-3">月次明細</h2>
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50">
-                  <tr className="border-b border-slate-200">
-                    <th className="px-2 py-2 text-left text-slate-500">月</th>
-                    <th className="px-2 text-right text-slate-500">予算</th>
-                    <th className="px-2 text-right text-slate-500">実績</th>
-                    <th className="px-2 text-right text-slate-500">売上予定</th>
-                    <th className="px-2 text-right text-slate-500">予算 − 実績</th>
-                    <th className="px-2 text-right text-slate-500">実績達成率</th>
-                    <th className="px-2 text-right text-slate-500">予算 − (実績+予定)</th>
-                    <th className="px-2 text-right text-slate-500">着地達成率</th>
+            <div className="bg-white rounded-xl border border-slate-300 p-5 mb-6 overflow-x-auto">
+              <h2 className="text-base font-bold mb-3 text-slate-900">月次明細</h2>
+              <table className="w-full text-sm">
+                <thead className="bg-slate-100">
+                  <tr className="border-b-2 border-slate-300">
+                    <th className="px-3 py-2.5 text-left text-slate-800 font-bold">月</th>
+                    <th className="px-3 text-right text-slate-800 font-bold">予算</th>
+                    <th className="px-3 text-right text-slate-800 font-bold">実績</th>
+                    <th className="px-3 text-right text-slate-800 font-bold">売上予定</th>
+                    <th className="px-3 text-right text-slate-800 font-bold">予算 − 実績</th>
+                    <th className="px-3 text-right text-slate-800 font-bold">実績達成率</th>
+                    <th className="px-3 text-right text-slate-800 font-bold">予算 − (実績+予定)</th>
+                    <th className="px-3 text-right text-slate-800 font-bold">着地達成率</th>
                   </tr>
                 </thead>
                 <tbody>
                   {months.map((m) => {
                     const { budget, actual, forecast } = byMonth[m];
-                    const landingMonth = actual + (m > thisMonth ? forecast : Math.max(forecast, actual) - actual);
                     const landingAdj = m > thisMonth ? actual + forecast : Math.max(actual + forecast, actual);
                     const diffA = budget - actual;
                     const diffL = budget - landingAdj;
@@ -288,40 +287,40 @@ export default async function DashboardPage() {
                     return (
                       <tr
                         key={m}
-                        className={`border-b border-slate-100 ${
-                          isCurrent ? "bg-blue-50 font-semibold" : ""
+                        className={`border-b border-slate-200 ${
+                          isCurrent ? "bg-blue-50 font-bold" : "hover:bg-slate-50"
                         }`}
                       >
-                        <td className="px-2 py-1.5">{m}{isCurrent && " (当月)"}</td>
-                        <td className="px-2 text-right">{formatCurrencyFull(budget)}</td>
-                        <td className="px-2 text-right text-blue-600">{formatCurrencyFull(actual)}</td>
-                        <td className="px-2 text-right text-amber-600">{formatCurrencyFull(forecast)}</td>
-                        <td className={`px-2 text-right ${diffA > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                        <td className="px-3 py-2 text-slate-900 font-semibold">{m}{isCurrent && " (当月)"}</td>
+                        <td className="px-3 text-right text-slate-900 font-semibold">{formatCurrencyFull(budget)}</td>
+                        <td className="px-3 text-right text-blue-700 font-semibold">{formatCurrencyFull(actual)}</td>
+                        <td className="px-3 text-right text-amber-700 font-semibold">{formatCurrencyFull(forecast)}</td>
+                        <td className={`px-3 text-right font-semibold ${diffA > 0 ? "text-red-700" : "text-emerald-700"}`}>
                           {diffA >= 0 ? "+" : ""}{formatCurrencyFull(-diffA)}
                         </td>
-                        <td className="px-2 text-right">{budget > 0 ? formatPercent(rateA) : "—"}</td>
-                        <td className={`px-2 text-right ${diffL > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                        <td className="px-3 text-right text-slate-900 font-semibold">{budget > 0 ? formatPercent(rateA) : "—"}</td>
+                        <td className={`px-3 text-right font-semibold ${diffL > 0 ? "text-red-700" : "text-emerald-700"}`}>
                           {diffL >= 0 ? "+" : ""}{formatCurrencyFull(-diffL)}
                         </td>
-                        <td className={`px-2 text-right font-medium ${rateL >= 1 ? "text-emerald-600" : "text-amber-600"}`}>
+                        <td className={`px-3 text-right font-bold ${rateL >= 1 ? "text-emerald-700" : "text-amber-700"}`}>
                           {budget > 0 ? formatPercent(rateL) : "—"}
                         </td>
                       </tr>
                     );
                   })}
-                  <tr className="bg-slate-100 font-bold">
-                    <td className="px-2 py-2">年間合計</td>
-                    <td className="px-2 text-right">{formatCurrencyFull(totalBudget)}</td>
-                    <td className="px-2 text-right text-blue-600">{formatCurrencyFull(totalActual)}</td>
-                    <td className="px-2 text-right text-amber-600">{formatCurrencyFull(totalFutureForecast + totalCurrentMonthForecast)}</td>
-                    <td className={`px-2 text-right ${diffActual < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                  <tr className="bg-slate-200 font-bold border-t-2 border-slate-400">
+                    <td className="px-3 py-2.5 text-slate-900">年間合計</td>
+                    <td className="px-3 text-right text-slate-900">{formatCurrencyFull(totalBudget)}</td>
+                    <td className="px-3 text-right text-blue-800">{formatCurrencyFull(totalActual)}</td>
+                    <td className="px-3 text-right text-amber-800">{formatCurrencyFull(totalFutureForecast + totalCurrentMonthForecast)}</td>
+                    <td className={`px-3 text-right ${diffActual < 0 ? "text-red-700" : "text-emerald-700"}`}>
                       {diffActual >= 0 ? "+" : ""}{formatCurrencyFull(diffActual)}
                     </td>
-                    <td className="px-2 text-right">{formatPercent(achievementRate)}</td>
-                    <td className={`px-2 text-right ${diffLanding < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                    <td className="px-3 text-right text-slate-900">{formatPercent(achievementRate)}</td>
+                    <td className={`px-3 text-right ${diffLanding < 0 ? "text-red-700" : "text-emerald-700"}`}>
                       {diffLanding >= 0 ? "+" : ""}{formatCurrencyFull(diffLanding)}
                     </td>
-                    <td className={`px-2 text-right ${landingRate >= 1 ? "text-emerald-600" : "text-amber-600"}`}>
+                    <td className={`px-3 text-right ${landingRate >= 1 ? "text-emerald-700" : "text-amber-700"}`}>
                       {formatPercent(landingRate)}
                     </td>
                   </tr>
@@ -388,7 +387,7 @@ export default async function DashboardPage() {
             );
           })}
         </div>
-        <div className="flex gap-4 mt-3 text-[11px] text-slate-500">
+        <div className="flex gap-4 mt-3 text-xs text-slate-700 font-medium">
           <span><span className="inline-block w-3 h-2 bg-emerald-500 rounded-sm mr-1" />入金予定</span>
           <span><span className="inline-block w-3 h-2 bg-red-400 rounded-sm mr-1" />出金予定</span>
         </div>
@@ -484,18 +483,18 @@ function KPICard({
   color?: "blue" | "green" | "emerald" | "amber" | "red" | "slate";
 }) {
   const colorMap: Record<string, string> = {
-    blue: "text-blue-600",
-    green: "text-emerald-600",
-    emerald: "text-emerald-500",
-    amber: "text-amber-600",
-    red: "text-red-600",
+    blue: "text-blue-700",
+    green: "text-emerald-700",
+    emerald: "text-emerald-600",
+    amber: "text-amber-700",
+    red: "text-red-700",
     slate: "text-slate-900",
   };
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4">
-      <div className="text-xs text-slate-500 mb-1">{label}</div>
+    <div className="bg-white rounded-xl border border-slate-300 p-4">
+      <div className="text-xs text-slate-700 font-semibold mb-1">{label}</div>
       <div className={`text-2xl font-bold ${colorMap[color]}`}>{value}</div>
-      {sub && <div className="text-[11px] text-slate-400 mt-1">{sub}</div>}
+      {sub && <div className="text-xs text-slate-600 mt-1">{sub}</div>}
     </div>
   );
 }

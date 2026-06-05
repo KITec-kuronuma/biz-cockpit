@@ -28,6 +28,7 @@ type Initial = {
   projectId?: string | null;
   productName?: string;
   planName?: string | null;
+  initialMonthlyAmount?: number;
   monthlyAmount?: number;
   billingCycle?: string;
   startDate?: string;
@@ -56,6 +57,8 @@ export function LicenseForm({
   const [submitting, setSubmitting] = useState(false);
 
   const filteredProjects = projects.filter((p) => p.clientId === clientId);
+  const isEdit = initial?.initialMonthlyAmount !== undefined;
+  const currentMonth = new Date().toISOString().slice(0, 7);
 
   async function handleSubmit(formData: FormData) {
     try {
@@ -134,8 +137,19 @@ export function LicenseForm({
         </Field>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <Field label="月額（円・税抜）" required>
+      {isEdit && (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs">
+          <div className="flex justify-between">
+            <span className="text-slate-500">期初予想額（変更不可）</span>
+            <strong className="text-slate-700">
+              ¥{(initial?.initialMonthlyAmount ?? 0).toLocaleString()} / 月
+            </strong>
+          </div>
+        </div>
+      )}
+
+      <div className={`grid ${isEdit ? "grid-cols-4" : "grid-cols-3"} gap-4`}>
+        <Field label={isEdit ? "計上予定額（最新）" : "月額（円・税抜）"} required>
           <input
             type="number"
             name="monthlyAmount"
@@ -145,6 +159,16 @@ export function LicenseForm({
             className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
           />
         </Field>
+        {isEdit && (
+          <Field label="適用開始月（変更時）">
+            <input
+              type="month"
+              name="effectiveMonth"
+              defaultValue={currentMonth}
+              className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+            />
+          </Field>
+        )}
         <Field label="課金周期">
           <select
             name="billingCycle"
@@ -172,6 +196,12 @@ export function LicenseForm({
           </select>
         </Field>
       </div>
+
+      {isEdit && (
+        <p className="text-[11px] text-slate-500 -mt-2">
+          💡 月額を変更した場合、指定した「適用開始月」以降がその金額になります（過去月は変更されません）
+        </p>
+      )}
 
       <div className="grid grid-cols-3 gap-4">
         <Field label="契約開始日" required>

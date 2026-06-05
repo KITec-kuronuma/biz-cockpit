@@ -26,6 +26,7 @@ export default async function EditLicensePage({ params }: { params: Promise<{ id
     projectId: license.projectId,
     productName: license.productName,
     planName: license.planName,
+    initialMonthlyAmount: license.initialMonthlyAmount,
     monthlyAmount: license.monthlyAmount,
     billingCycle: license.billingCycle,
     startDate: toInputDate(license.startDate),

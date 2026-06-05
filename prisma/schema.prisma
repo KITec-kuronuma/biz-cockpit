@@ -30,23 +30,53 @@ model Client {
 
 // ライセンス契約（独立モデル：案件とは別に管理、任意で案件にリンク可）
 model LicenseContract {
-  id              String    @id @default(cuid())
-  clientId        String
-  client          Client    @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  projectId       String?
-  project         Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  productName     String    // 製品名（例：CRM基本パック）
-  planName        String?   // プラン名（例：Pro / Enterprise）
-  monthlyAmount   Int       // 月額（円・税抜）
-  billingCycle    String    @default("MONTHLY") // MONTHLY / YEARLY / ONE_TIME
-  startDate       DateTime  // 契約開始日
-  endDate         DateTime? // 契約終了日
-  nextRenewalDate DateTime? // 次回更新日
-  renewalType     String    @default("MANUAL") // AUTO / MANUAL
-  status          String    @default("ACTIVE") // ACTIVE / SCHEDULED_CANCEL / CANCELLED / EXPIRED
-  note            String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                   String                    @id @default(cuid())
+  clientId             String
+  client               Client                    @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  projectId            String?
+  project              Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  productName          String
+  planName             String?
+  initialMonthlyAmount Int                       @default(0) // 期初予想額（ロック・変更不可）
+  monthlyAmount        Int                       // 最新の計上予定額（変更時、適用開始月を指定）
+  billingCycle         String                    @default("MONTHLY") // MONTHLY / YEARLY / ONE_TIME
+  startDate            DateTime
+  endDate              DateTime?
+  nextRenewalDate      DateTime?
+  renewalType          String                    @default("MANUAL")
+  status               String                    @default("ACTIVE")
+  note                 String?
+  schedules            LicenseMonthlySchedule[]
+  actuals              LicenseMonthlyActual[]
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+}
+
+// ライセンス計上予定額の変更履歴（適用開始月ベース）
+model LicenseMonthlySchedule {
+  id             String          @id @default(cuid())
+  licenseId      String
+  license        LicenseContract @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  effectiveMonth String          // YYYY-MM - この月以降に適用
+  amount         Int
+  note           String?
+  createdAt      DateTime        @default(now())
+
+  @@index([licenseId, effectiveMonth])
+}
+
+// ライセンス月次実績
+model LicenseMonthlyActual {
+  id        String          @id @default(cuid())
+  licenseId String
+  license   LicenseContract @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  yearMonth String          // YYYY-MM
+  amount    Int
+  note      String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@unique([licenseId, yearMonth])
 }
 
 // 取引先 × 月別 予算（当期予算の源泉）

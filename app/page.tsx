@@ -2,12 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { calcPaymentRate, calcFunnel } from "@/lib/domain/kpi";
 import { calcCashflow } from "@/lib/domain/cf";
 import { getFiscalMonths } from "@/lib/domain/fiscal";
+import { getScheduledAmount, getInitialAmount, getActualAmount } from "@/lib/domain/license";
 import { formatCurrency, formatPercent, formatCurrencyFull } from "@/lib/format";
 import { STATUS_LABELS, PROGRESS_LABELS } from "@/lib/types";
 import Link from "next/link";
 
 export default async function DashboardPage() {
-  const [setting, projects, clientBudgets] = await Promise.all([
+  const [setting, projects, clientBudgets, licenses] = await Promise.all([
     prisma.setting.findFirst(),
     prisma.project.findMany({
       include: {
@@ -18,6 +19,9 @@ export default async function DashboardPage() {
       },
     }),
     prisma.clientMonthlyBudget.findMany({ include: { client: true } }),
+    prisma.licenseContract.findMany({
+      include: { schedules: true, actuals: true },
+    }),
   ]);
 
   const fiscalYear = 2026;
@@ -94,6 +98,14 @@ export default async function DashboardPage() {
               inv.invoiceDate.getUTCMonth() + 1
             ).padStart(2, "0")}`;
             if (byMonth[ym]) byMonth[ym].actual += inv.amount;
+          }
+        }
+
+        // ライセンス：計上予定と実績を月別加算
+        for (const l of licenses) {
+          for (const m of months) {
+            byMonth[m].forecast += getScheduledAmount(l, m);
+            byMonth[m].actual += getActualAmount(l, m);
           }
         }
 

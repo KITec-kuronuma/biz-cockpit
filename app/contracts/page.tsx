@@ -88,11 +88,12 @@ export default async function LicenseContractsPage() {
             <tr className="text-left text-xs text-slate-500">
               <th className="px-3 py-2">取引先</th>
               <th className="px-3">製品 / プラン</th>
-              <th className="px-3 text-right">月額</th>
+              <th className="px-3 text-right">期初予想</th>
+              <th className="px-3 text-right">計上予定</th>
+              <th className="px-3 text-right">差分</th>
               <th className="px-3">課金</th>
               <th className="px-3">開始日</th>
               <th className="px-3">次回更新</th>
-              <th className="px-3">更新</th>
               <th className="px-3">ステータス</th>
               <th className="px-3">関連案件</th>
               <th></th>
@@ -101,7 +102,7 @@ export default async function LicenseContractsPage() {
           <tbody>
             {licenses.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-3 py-6 text-center text-xs text-slate-400">
+                <td colSpan={11} className="px-3 py-6 text-center text-xs text-slate-400">
                   ライセンス契約はまだ登録されていません。<br />
                   右上の「＋ ライセンス契約追加」から、既存・新規どちらの契約も登録できます。
                 </td>
@@ -109,6 +110,7 @@ export default async function LicenseContractsPage() {
             )}
             {licenses.map((l) => {
               const statusInfo = STATUS_LABELS[l.status] ?? { label: l.status, color: "" };
+              const diff = l.monthlyAmount - l.initialMonthlyAmount;
               return (
                 <tr key={l.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="px-3 py-2.5 font-medium">{l.client.name}</td>
@@ -118,13 +120,26 @@ export default async function LicenseContractsPage() {
                       <div className="text-[11px] text-slate-500">{l.planName}</div>
                     )}
                   </td>
-                  <td className="px-3 text-right font-semibold">
+                  <td className="px-3 text-right text-slate-600">
+                    {formatCurrencyFull(l.initialMonthlyAmount)}
+                  </td>
+                  <td className="px-3 text-right font-semibold text-blue-700">
                     {formatCurrencyFull(l.monthlyAmount)}
+                  </td>
+                  <td
+                    className={`px-3 text-right text-xs ${
+                      diff > 0
+                        ? "text-emerald-600"
+                        : diff < 0
+                        ? "text-red-600"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    {diff === 0 ? "—" : (diff > 0 ? "+" : "") + formatCurrencyFull(diff)}
                   </td>
                   <td className="px-3 text-xs">{BILLING_CYCLE_LABELS[l.billingCycle]}</td>
                   <td className="px-3 text-xs">{formatDate(l.startDate)}</td>
                   <td className="px-3 text-xs">{formatDate(l.nextRenewalDate)}</td>
-                  <td className="px-3 text-xs">{RENEWAL_TYPE_LABELS[l.renewalType]}</td>
                   <td className="px-3">
                     <span
                       className={`inline-block px-2 py-0.5 rounded text-[11px] ${statusInfo.color}`}

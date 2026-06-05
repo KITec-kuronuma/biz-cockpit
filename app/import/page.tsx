@@ -3,10 +3,20 @@ import { ImportForm } from "./ImportForm";
 export default function ImportPage() {
   return (
     <div className="p-6 max-w-4xl">
-      <h1 className="text-xl font-bold mb-2">📥 Excelインポート</h1>
-      <p className="text-sm text-slate-500 mb-6">
-        取引先・担当者・案件・ライセンス契約を一括取り込み
-      </p>
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <h1 className="text-xl font-bold mb-2">📥 Excelインポート</h1>
+          <p className="text-sm text-slate-500">
+            取引先・担当者・案件・ライセンス契約を一括取り込み
+          </p>
+        </div>
+        <a
+          href="/import/image"
+          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium"
+        >
+          🖼️ 画像から取り込み（AI）→
+        </a>
+      </div>
 
       {/* 手順カード */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 mb-6">

@@ -17,6 +17,7 @@ const SUB_ITEMS = [
   { href: "/contracts", label: "ライセンス契約一覧", icon: "🔄" },
   { href: "/activities", label: "活動履歴", icon: "📝" },
   { href: "/users", label: "ユーザー管理", icon: "👥" },
+  { href: "/import", label: "Excelインポート", icon: "📥" },
 ];
 
 function NavItem({ href, label, icon, active }: { href: string; label: string; icon: string; active: boolean }) {

@@ -37,14 +37,18 @@ model LicenseContract {
   project              Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
   productName          String
   planName             String?
-  initialMonthlyAmount Int                       @default(0) // 期初予想額（ロック・変更不可）
-  monthlyAmount        Int                       // 最新の計上予定額（変更時、適用開始月を指定）
-  billingCycle         String                    @default("MONTHLY") // MONTHLY / YEARLY / ONE_TIME
+  serviceType          String                    @default("LICENSE") // LICENSE / MAINTENANCE
+  initialMonthlyAmount Int                       @default(0)
+  monthlyAmount        Int
+  billingCycle         String                    @default("MONTHLY")
   startDate            DateTime
   endDate              DateTime?
   nextRenewalDate      DateTime?
   renewalType          String                    @default("MANUAL")
   status               String                    @default("ACTIVE")
+  licenseAgreement     String?                   // 使用許諾書（フリー入力）
+  memorandum           String?                   // 覚書（フリー入力）
+  quoteSentMonth       String?                   // 見積書送付月（YYYY-MM）
   note                 String?
   schedules            LicenseMonthlySchedule[]
   actuals              LicenseMonthlyActual[]

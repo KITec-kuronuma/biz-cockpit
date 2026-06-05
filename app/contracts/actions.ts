@@ -10,6 +10,7 @@ const licenseSchema = z.object({
   projectId: z.string().optional(),
   productName: z.string().min(1, "製品名は必須です"),
   planName: z.string().optional(),
+  serviceType: z.enum(["LICENSE", "MAINTENANCE"]).default("LICENSE"),
   monthlyAmount: z.coerce.number().int().min(0),
   billingCycle: z.enum(["MONTHLY", "YEARLY", "ONE_TIME"]).default("MONTHLY"),
   startDate: z.string().min(1, "契約開始日は必須です"),
@@ -17,6 +18,9 @@ const licenseSchema = z.object({
   nextRenewalDate: z.string().optional(),
   renewalType: z.enum(["AUTO", "MANUAL"]).default("MANUAL"),
   status: z.enum(["ACTIVE", "SCHEDULED_CANCEL", "CANCELLED", "EXPIRED"]).default("ACTIVE"),
+  licenseAgreement: z.string().optional(),
+  memorandum: z.string().optional(),
+  quoteSentMonth: z.string().regex(/^\d{4}-\d{2}$/).optional().or(z.literal("")),
   note: z.string().optional(),
   effectiveMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(),
 });
@@ -45,6 +49,7 @@ export async function createLicense(formData: FormData) {
       projectId: data.projectId || null,
       productName: data.productName,
       planName: data.planName || null,
+      serviceType: data.serviceType,
       initialMonthlyAmount: data.monthlyAmount,
       monthlyAmount: data.monthlyAmount,
       billingCycle: data.billingCycle,
@@ -53,8 +58,10 @@ export async function createLicense(formData: FormData) {
       nextRenewalDate: parseDate(data.nextRenewalDate),
       renewalType: data.renewalType,
       status: data.status,
+      licenseAgreement: data.licenseAgreement || null,
+      memorandum: data.memorandum || null,
+      quoteSentMonth: data.quoteSentMonth || null,
       note: data.note || null,
-      // 開始月に初期スケジュールを登録（履歴の起点）
       schedules: {
         create: { effectiveMonth: startMonth, amount: data.monthlyAmount, note: "期初登録" },
       },
@@ -84,6 +91,7 @@ export async function updateLicense(licenseId: string, formData: FormData) {
       projectId: data.projectId || null,
       productName: data.productName,
       planName: data.planName || null,
+      serviceType: data.serviceType,
       // initialMonthlyAmount は変更しない
       monthlyAmount: data.monthlyAmount,
       billingCycle: data.billingCycle,
@@ -92,6 +100,9 @@ export async function updateLicense(licenseId: string, formData: FormData) {
       nextRenewalDate: parseDate(data.nextRenewalDate),
       renewalType: data.renewalType,
       status: data.status,
+      licenseAgreement: data.licenseAgreement || null,
+      memorandum: data.memorandum || null,
+      quoteSentMonth: data.quoteSentMonth || null,
       note: data.note || null,
       ...(amountChanged && {
         schedules: {

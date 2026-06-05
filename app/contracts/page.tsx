@@ -2,6 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrencyFull, formatDate } from "@/lib/format";
 import Link from "next/link";
 
+const SERVICE_TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  LICENSE: { label: "ライセンス", color: "bg-blue-100 text-blue-800" },
+  MAINTENANCE: { label: "保守", color: "bg-purple-100 text-purple-800" },
+};
+
 const BILLING_CYCLE_LABELS: Record<string, string> = {
   MONTHLY: "月額",
   YEARLY: "年額",
@@ -87,22 +92,23 @@ export default async function LicenseContractsPage() {
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr className="text-left text-xs text-slate-500">
               <th className="px-3 py-2">取引先</th>
+              <th className="px-3">区分</th>
               <th className="px-3">製品 / プラン</th>
               <th className="px-3 text-right">期初予想</th>
               <th className="px-3 text-right">計上予定</th>
               <th className="px-3 text-right">差分</th>
               <th className="px-3">課金</th>
               <th className="px-3">開始日</th>
+              <th className="px-3">見積送付月</th>
               <th className="px-3">次回更新</th>
               <th className="px-3">ステータス</th>
-              <th className="px-3">関連案件</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {licenses.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-3 py-6 text-center text-xs text-slate-400">
+                <td colSpan={12} className="px-3 py-6 text-center text-xs text-slate-400">
                   ライセンス契約はまだ登録されていません。<br />
                   右上の「＋ ライセンス契約追加」から、既存・新規どちらの契約も登録できます。
                 </td>
@@ -110,10 +116,16 @@ export default async function LicenseContractsPage() {
             )}
             {licenses.map((l) => {
               const statusInfo = STATUS_LABELS[l.status] ?? { label: l.status, color: "" };
+              const svcInfo = SERVICE_TYPE_LABELS[l.serviceType] ?? { label: l.serviceType, color: "" };
               const diff = l.monthlyAmount - l.initialMonthlyAmount;
               return (
                 <tr key={l.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="px-3 py-2.5 font-medium">{l.client.name}</td>
+                  <td className="px-3">
+                    <span className={`inline-block px-2 py-0.5 rounded text-[11px] ${svcInfo.color}`}>
+                      {svcInfo.label}
+                    </span>
+                  </td>
                   <td className="px-3">
                     <div className="font-medium">{l.productName}</div>
                     {l.planName && (
@@ -139,6 +151,7 @@ export default async function LicenseContractsPage() {
                   </td>
                   <td className="px-3 text-xs">{BILLING_CYCLE_LABELS[l.billingCycle]}</td>
                   <td className="px-3 text-xs">{formatDate(l.startDate)}</td>
+                  <td className="px-3 text-xs">{l.quoteSentMonth ?? "—"}</td>
                   <td className="px-3 text-xs">{formatDate(l.nextRenewalDate)}</td>
                   <td className="px-3">
                     <span
@@ -146,18 +159,6 @@ export default async function LicenseContractsPage() {
                     >
                       {statusInfo.label}
                     </span>
-                  </td>
-                  <td className="px-3 text-xs">
-                    {l.project ? (
-                      <Link
-                        href={`/projects/${l.project.id}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {l.project.title}
-                      </Link>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
                   </td>
                   <td className="px-3">
                     <Link

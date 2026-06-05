@@ -26,6 +26,7 @@ export default async function EditLicensePage({ params }: { params: Promise<{ id
     projectId: license.projectId,
     productName: license.productName,
     planName: license.planName,
+    serviceType: license.serviceType,
     initialMonthlyAmount: license.initialMonthlyAmount,
     monthlyAmount: license.monthlyAmount,
     billingCycle: license.billingCycle,
@@ -34,6 +35,9 @@ export default async function EditLicensePage({ params }: { params: Promise<{ id
     nextRenewalDate: toInputDate(license.nextRenewalDate),
     renewalType: license.renewalType,
     status: license.status,
+    licenseAgreement: license.licenseAgreement,
+    memorandum: license.memorandum,
+    quoteSentMonth: license.quoteSentMonth,
     note: license.note,
   };
 

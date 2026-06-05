@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 
+const SERVICE_TYPE_LABELS: Record<string, string> = {
+  LICENSE: "ライセンス",
+  MAINTENANCE: "保守",
+};
+
 const BILLING_CYCLE_LABELS: Record<string, string> = {
   MONTHLY: "月額",
   YEARLY: "年額",
@@ -28,6 +33,7 @@ type Initial = {
   projectId?: string | null;
   productName?: string;
   planName?: string | null;
+  serviceType?: string;
   initialMonthlyAmount?: number;
   monthlyAmount?: number;
   billingCycle?: string;
@@ -36,6 +42,9 @@ type Initial = {
   nextRenewalDate?: string;
   renewalType?: string;
   status?: string;
+  licenseAgreement?: string | null;
+  memorandum?: string | null;
+  quoteSentMonth?: string | null;
   note?: string | null;
 };
 
@@ -115,7 +124,20 @@ export function LicenseForm({
         </Field>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
+        <Field label="サービス区分" required>
+          <select
+            name="serviceType"
+            defaultValue={initial?.serviceType ?? "LICENSE"}
+            className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+          >
+            {Object.entries(SERVICE_TYPE_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </Field>
         <Field label="製品名" required>
           <input
             type="text"
@@ -243,6 +265,38 @@ export function LicenseForm({
             </option>
           ))}
         </select>
+      </Field>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="見積書送付月">
+          <input
+            type="month"
+            name="quoteSentMonth"
+            defaultValue={initial?.quoteSentMonth ?? ""}
+            className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+          />
+        </Field>
+        <div></div>
+      </div>
+
+      <Field label="使用許諾書（フリー入力）">
+        <textarea
+          name="licenseAgreement"
+          rows={3}
+          defaultValue={initial?.licenseAgreement ?? ""}
+          placeholder="使用許諾書の内容、保管場所、URL等を記入"
+          className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+        />
+      </Field>
+
+      <Field label="覚書（フリー入力）">
+        <textarea
+          name="memorandum"
+          rows={3}
+          defaultValue={initial?.memorandum ?? ""}
+          placeholder="覚書の内容、特約事項等を記入"
+          className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+        />
       </Field>
 
       <Field label="備考">

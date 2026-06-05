@@ -60,16 +60,27 @@ export function getActualAmount(license: LicenseLike, yearMonth: string): number
 }
 
 /**
- * 月内でライセンスが有効か（解約後/失効/開始前は無効）
+ * 月内でライセンスが有効か（予算・計上予定の計上対象になるか）
+ * - ACTIVE: 契約終了日を過ぎても継続計上（更新前提）
+ * - SCHEDULED_CANCEL / CANCELLED / EXPIRED: endDate で停止
+ * - いずれも startDate より前の月は対象外
  */
 function isActiveInMonth(license: LicenseLike, yearMonth: string): boolean {
-  if (license.status === "CANCELLED" || license.status === "EXPIRED") return false;
   const startYM = toYearMonth(license.startDate);
   if (yearMonth < startYM) return false;
-  if (license.endDate) {
-    const endYM = toYearMonth(license.endDate);
-    if (yearMonth > endYM) return false;
+
+  // 解約予定/解約済/失効は endDate で打ち切り
+  if (
+    license.status === "CANCELLED" ||
+    license.status === "EXPIRED" ||
+    license.status === "SCHEDULED_CANCEL"
+  ) {
+    if (license.endDate) {
+      const endYM = toYearMonth(license.endDate);
+      if (yearMonth > endYM) return false;
+    }
   }
+  // ACTIVE は endDate を過ぎても継続（次年度更新を前提）
   return true;
 }
 

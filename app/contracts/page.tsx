@@ -86,6 +86,10 @@ export default async function LicenseContractsPage() {
           ＋ ライセンス契約追加
         </Link>
       </div>
+      <div className="mb-4 px-4 py-2 bg-blue-50 border border-blue-200 rounded text-xs text-slate-700">
+        💡 <strong>予算計上ルール</strong>：ステータスが「有効」の契約は、契約終了日を過ぎても <strong>次年度の更新前提で予算・計上予定が継続</strong> されます。
+        更新しない場合はステータスを「解約予定」「解約済」「失効」に変更してください。
+      </div>
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">

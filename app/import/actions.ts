@@ -9,6 +9,11 @@ import {
   parseInt0,
   str,
   strOrNull,
+  normalizeCompanyName,
+  normalizeServiceType,
+  normalizeBillingCycle,
+  normalizeRenewalType,
+  normalizeLicenseStatus,
   ImportResult,
 } from "@/lib/import/excel";
 
@@ -27,6 +32,20 @@ export async function importExcel(formData: FormData): Promise<ImportResult[]> {
 
   const results: ImportResult[] = [];
 
+  // 全取引先をキャッシュ（正規化マッチング用）
+  let allClientsCache = await prisma.client.findMany({
+    select: { id: true, name: true },
+  });
+  async function findClientByName(name: string) {
+    const exact = allClientsCache.find((c) => c.name === name);
+    if (exact) return exact;
+    const target = normalizeCompanyName(name);
+    return allClientsCache.find((c) => normalizeCompanyName(c.name) === target) ?? null;
+  }
+  async function refreshClientsCache() {
+    allClientsCache = await prisma.client.findMany({ select: { id: true, name: true } });
+  }
+
   // ===== 取引先 =====
   const clientsResult: ImportResult = {
     type: "取引先",
@@ -44,7 +63,6 @@ export async function importExcel(formData: FormData): Promise<ImportResult[]> {
         clientsResult.skipped++;
         continue;
       }
-      const existing = await prisma.client.findFirst({ where: { name } });
       const data = {
         name,
         industry: strOrNull(r["業種"]),
@@ -54,20 +72,24 @@ export async function importExcel(formData: FormData): Promise<ImportResult[]> {
         website: strOrNull(r["ウェブサイト"]),
         note: strOrNull(r["備考"]),
       };
-      if (existing) {
-        // 空欄は維持して更新
-        await prisma.client.update({
-          where: { id: existing.id },
-          data: {
-            industry: data.industry ?? existing.industry,
-            address: data.address ?? existing.address,
-            phone: data.phone ?? existing.phone,
-            fax: data.fax ?? existing.fax,
-            website: data.website ?? existing.website,
-            note: data.note ?? existing.note,
-          },
-        });
-        clientsResult.updated++;
+      // 正規化マッチで既存判定（株式会社/㈱等を除いて比較）
+      const existingClient = await findClientByName(name);
+      if (existingClient) {
+        const existing = await prisma.client.findUnique({ where: { id: existingClient.id } });
+        if (existing) {
+          await prisma.client.update({
+            where: { id: existing.id },
+            data: {
+              industry: data.industry ?? existing.industry,
+              address: data.address ?? existing.address,
+              phone: data.phone ?? existing.phone,
+              fax: data.fax ?? existing.fax,
+              website: data.website ?? existing.website,
+              note: data.note ?? existing.note,
+            },
+          });
+          clientsResult.updated++;
+        }
       } else {
         await prisma.client.create({ data });
         clientsResult.added++;
@@ -79,6 +101,7 @@ export async function importExcel(formData: FormData): Promise<ImportResult[]> {
       });
     }
   }
+  await refreshClientsCache();
   results.push(clientsResult);
 
   // ===== 担当者 =====
@@ -99,7 +122,7 @@ export async function importExcel(formData: FormData): Promise<ImportResult[]> {
         contactsResult.skipped++;
         continue;
       }
-      const client = await prisma.client.findFirst({ where: { name: companyName } });
+      const client = await findClientByName(companyName);
       if (!client) {
         contactsResult.errors.push({
           row: i + 2,
@@ -160,7 +183,7 @@ export async function importExcel(formData: FormData): Promise<ImportResult[]> {
         projectsResult.skipped++;
         continue;
       }
-      const client = await prisma.client.findFirst({ where: { name: companyName } });
+      const client = await findClientByName(companyName);
       if (!client) {
         projectsResult.errors.push({
           row: i + 2,
@@ -226,7 +249,7 @@ export async function importExcel(formData: FormData): Promise<ImportResult[]> {
         licensesResult.skipped++;
         continue;
       }
-      const client = await prisma.client.findFirst({ where: { name: companyName } });
+      const client = await findClientByName(companyName);
       if (!client) {
         licensesResult.errors.push({
           row: i + 2,
@@ -247,13 +270,13 @@ export async function importExcel(formData: FormData): Promise<ImportResult[]> {
         clientId: client.id,
         productName,
         planName: strOrNull(r["プラン名"]),
-        serviceType: (str(r["サービス区分"]) || "LICENSE").toUpperCase(),
-        billingCycle: (str(r["課金周期"]) || "MONTHLY").toUpperCase(),
+        serviceType: normalizeServiceType(r["サービス区分"]),
+        billingCycle: normalizeBillingCycle(r["課金周期"]),
         startDate,
         endDate: parseExcelDate(r["契約終了日"]),
         nextRenewalDate: parseExcelDate(r["次回更新日"]),
-        renewalType: (str(r["更新タイプ"]) || "MANUAL").toUpperCase(),
-        status: (str(r["ステータス"]) || "ACTIVE").toUpperCase(),
+        renewalType: normalizeRenewalType(r["更新タイプ"]),
+        status: normalizeLicenseStatus(r["ステータス"]),
         licenseAgreement: strOrNull(r["使用許諾書"]),
         memorandum: strOrNull(r["覚書"]),
         quoteSentMonth: strOrNull(r["見積書送付月"]),

@@ -28,12 +28,16 @@ export function sheetToRows(workbook: XLSX.WorkBook, sheetName: string): Record<
 
 /**
  * 日付文字列・Excelシリアル値どちらにも対応
+ * 対応フォーマット：
+ *  - YYYY-MM-DD / YYYY/MM/DD
+ *  - MM/DD/YY (米国形式・2桁年は2000年代と仮定)
+ *  - Excel シリアル値（数値）
+ *  - Date オブジェクト
  */
 export function parseExcelDate(v: unknown): Date | null {
   if (!v) return null;
   if (v instanceof Date) return v;
   if (typeof v === "number") {
-    // Excelシリアル値（1900-01-01からの日数）
     const d = XLSX.SSF.parse_date_code(v);
     if (!d) return null;
     return new Date(Date.UTC(d.y, d.m - 1, d.d));
@@ -41,18 +45,82 @@ export function parseExcelDate(v: unknown): Date | null {
   if (typeof v === "string") {
     const s = v.trim();
     if (!s) return null;
-    // YYYY-MM-DD / YYYY/MM/DD / YYYY/M/D 等
-    const match = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-    if (match) {
+    // YYYY-MM-DD / YYYY/MM/DD
+    const m1 = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (m1) {
       return new Date(
-        Date.UTC(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]))
+        Date.UTC(parseInt(m1[1]), parseInt(m1[2]) - 1, parseInt(m1[3]))
       );
     }
-    // 日付として解釈試みる
+    // MM/DD/YYYY / MM/DD/YY
+    const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if (m2) {
+      let year = parseInt(m2[3]);
+      if (year < 100) year += 2000;
+      return new Date(Date.UTC(year, parseInt(m2[1]) - 1, parseInt(m2[2])));
+    }
     const d = new Date(s);
     if (!isNaN(d.getTime())) return d;
   }
   return null;
+}
+
+/**
+ * 会社名を正規化（株式会社等を除去）して比較しやすくする
+ */
+export function normalizeCompanyName(s: string): string {
+  const stripped = s
+    .replace(/[\s　]/g, "")
+    .replace(
+      /^(株式会社|有限会社|合同会社|合資会社|合名会社|医療法人|社会福祉法人|学校法人|公益財団法人|一般財団法人|公益社団法人|一般社団法人|特定非営利活動法人|NPO法人|㈱|（株）|\(株\))/,
+      ""
+    )
+    .replace(
+      /(株式会社|有限会社|合同会社|合資会社|合名会社|㈱|（株）|\(株\))$/,
+      ""
+    );
+  return stripped.toLowerCase();
+}
+
+/**
+ * サービス区分の値を正規化（日本語→英字キー）
+ */
+export function normalizeServiceType(v: unknown): "LICENSE" | "MAINTENANCE" {
+  const s = str(v).toUpperCase();
+  if (s === "MAINTENANCE" || s === "保守" || s.includes("保守")) return "MAINTENANCE";
+  return "LICENSE"; // デフォルト
+}
+
+/**
+ * 課金周期の値を正規化
+ */
+export function normalizeBillingCycle(v: unknown): "MONTHLY" | "YEARLY" | "ONE_TIME" {
+  const s = str(v).toUpperCase();
+  if (s === "YEARLY" || s === "年額" || s === "年" || s.includes("年")) return "YEARLY";
+  if (s === "ONE_TIME" || s === "一括" || s.includes("一括")) return "ONE_TIME";
+  return "MONTHLY";
+}
+
+/**
+ * 更新タイプの正規化
+ */
+export function normalizeRenewalType(v: unknown): "AUTO" | "MANUAL" {
+  const s = str(v).toUpperCase();
+  if (s === "AUTO" || s === "自動" || s.includes("自動")) return "AUTO";
+  return "MANUAL";
+}
+
+/**
+ * ライセンスステータスの正規化
+ */
+export function normalizeLicenseStatus(
+  v: unknown
+): "ACTIVE" | "SCHEDULED_CANCEL" | "CANCELLED" | "EXPIRED" {
+  const s = str(v).toUpperCase();
+  if (s === "SCHEDULED_CANCEL" || s.includes("解約予定")) return "SCHEDULED_CANCEL";
+  if (s === "CANCELLED" || s === "解約済" || s.includes("解約")) return "CANCELLED";
+  if (s === "EXPIRED" || s === "失効") return "EXPIRED";
+  return "ACTIVE";
 }
 
 export function parseInt0(v: unknown): number {

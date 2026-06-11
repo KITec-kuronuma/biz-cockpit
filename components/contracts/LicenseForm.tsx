@@ -160,13 +160,20 @@ export function LicenseForm({
       </div>
 
       {isEdit && (
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs">
-          <div className="flex justify-between">
-            <span className="text-slate-500">期初予想額（変更不可）</span>
-            <strong className="text-slate-700">
-              ¥{(initial?.initialMonthlyAmount ?? 0).toLocaleString()} / 月
-            </strong>
-          </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <Field label="期初予想額（誤入力の訂正用・通常変更しない）">
+            <input
+              type="number"
+              name="initialMonthlyAmount"
+              min="0"
+              defaultValue={initial?.initialMonthlyAmount ?? 0}
+              className="w-48 border border-amber-300 rounded px-2 py-1.5 text-sm bg-white"
+            />
+            <span className="text-xs text-slate-600 ml-2">円/月</span>
+          </Field>
+          <p className="text-[11px] text-amber-700 mt-1">
+            ⚠️ 期初予想額は通常ロックされます。修正は誤入力訂正など、必要な場合のみ行ってください。
+          </p>
         </div>
       )}
 

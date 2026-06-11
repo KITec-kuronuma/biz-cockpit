@@ -11,6 +11,7 @@ const licenseSchema = z.object({
   productName: z.string().min(1, "製品名は必須です"),
   planName: z.string().optional(),
   serviceType: z.enum(["LICENSE", "MAINTENANCE"]).default("LICENSE"),
+  initialMonthlyAmount: z.coerce.number().int().min(0).optional(),
   monthlyAmount: z.coerce.number().int().min(0),
   billingCycle: z.enum(["MONTHLY", "YEARLY", "ONE_TIME"]).default("MONTHLY"),
   startDate: z.string().min(1, "契約開始日は必須です"),
@@ -92,7 +93,10 @@ export async function updateLicense(licenseId: string, formData: FormData) {
       productName: data.productName,
       planName: data.planName || null,
       serviceType: data.serviceType,
-      // initialMonthlyAmount は変更しない
+      // 期初予想額：明示的に渡された場合のみ更新（誤訂正対応）
+      ...(data.initialMonthlyAmount !== undefined && {
+        initialMonthlyAmount: data.initialMonthlyAmount,
+      }),
       monthlyAmount: data.monthlyAmount,
       billingCycle: data.billingCycle,
       startDate: parseDate(data.startDate)!,

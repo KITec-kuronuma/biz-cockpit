@@ -9,7 +9,7 @@ import {
 } from "@/lib/types";
 import Link from "next/link";
 import { addInvoice, deleteInvoice, addPayment, addCost, deleteCost } from "./actions";
-import { addForecast, deleteForecast } from "./forecastActions";
+import { addForecast, deleteForecast, updateInitialForecast } from "./forecastActions";
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -232,8 +232,25 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               return (
                 <tr key={f.id} className="border-b border-slate-100">
                   <td className="py-2 text-xs">{f.yearMonth}</td>
-                  <td className="text-right text-slate-600">
-                    {formatCurrencyFull(f.initialAmount)}
+                  <td className="text-right">
+                    <form action={updateInitialForecast} className="inline-flex items-center gap-1">
+                      <input type="hidden" name="forecastId" value={f.id} />
+                      <input type="hidden" name="projectId" value={project.id} />
+                      <input
+                        type="number"
+                        name="initialAmount"
+                        defaultValue={f.initialAmount}
+                        title="期初予想額（誤入力訂正用）"
+                        className="w-28 border border-amber-200 hover:border-amber-400 rounded px-1 py-0.5 text-xs text-right bg-amber-50"
+                      />
+                      <button
+                        type="submit"
+                        className="text-[10px] text-amber-700 hover:underline"
+                        title="期初予想額を保存"
+                      >
+                        保存
+                      </button>
+                    </form>
                   </td>
                   <td className="text-right font-medium text-blue-700">
                     {formatCurrencyFull(f.amount)}

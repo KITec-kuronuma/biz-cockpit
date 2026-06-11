@@ -8,16 +8,19 @@ const forecastSchema = z.object({
   projectId: z.string(),
   yearMonth: z.string().regex(/^\d{4}-\d{2}$/, "YYYY-MM形式で入力"),
   amount: z.coerce.number().int().min(0),
+  initialAmount: z.coerce.number().int().min(0).optional(),
   note: z.string().optional(),
 });
 
 // 月別見込みを追加 or 現状見込みのみ更新
-// 期初予想は新規登録時のみ amount と同じ値で記録され、その後変更されない
+// 期初予想は新規登録時のみ amount と同じ値で記録される（既存月への再登録では現状見込みのみ更新）
 export async function upsertForecast(formData: FormData) {
+  const initialRaw = formData.get("initialAmount");
   const data = forecastSchema.parse({
     projectId: formData.get("projectId"),
     yearMonth: formData.get("yearMonth"),
     amount: formData.get("amount"),
+    initialAmount: initialRaw !== null && initialRaw !== "" ? initialRaw : undefined,
     note: formData.get("note") || undefined,
   });
 
@@ -26,13 +29,14 @@ export async function upsertForecast(formData: FormData) {
     create: {
       projectId: data.projectId,
       yearMonth: data.yearMonth,
-      initialAmount: data.amount, // 新規時のみセット
+      initialAmount: data.initialAmount ?? data.amount,
       amount: data.amount,
       note: data.note ?? null,
     },
     update: {
-      // 期初予想（initialAmount）は変更しない
       amount: data.amount,
+      // 期初予想額は明示的に渡された場合のみ更新（誤入力訂正等）
+      ...(data.initialAmount !== undefined && { initialAmount: data.initialAmount }),
       note: data.note ?? null,
     },
   });
@@ -42,7 +46,22 @@ export async function upsertForecast(formData: FormData) {
   revalidatePath("/finance");
 }
 
-// 期初予想を再設定（運用上のリセット）
+// 期初予想額を任意の値に更新（個別レコード）
+export async function updateInitialForecast(formData: FormData) {
+  const forecastId = String(formData.get("forecastId") ?? "");
+  const projectId = String(formData.get("projectId") ?? "");
+  const initialAmount = Number(formData.get("initialAmount") ?? 0);
+  if (!forecastId || !projectId) return;
+  await prisma.projectMonthlyForecast.update({
+    where: { id: forecastId },
+    data: { initialAmount: Math.max(0, Math.round(initialAmount)) },
+  });
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/");
+  revalidatePath("/finance");
+}
+
+// 期初予想を現状見込みに揃える（リセット）
 export async function resetInitialForecast(forecastId: string, projectId: string) {
   const f = await prisma.projectMonthlyForecast.findUnique({ where: { id: forecastId } });
   if (!f) return;

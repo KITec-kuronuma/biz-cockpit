@@ -211,6 +211,18 @@ model Setting {
   taxRate              Int    @default(10)
 }
 
+// 会計年度（年度ごとに開始月・終了月を柔軟設定）
+model FiscalYear {
+  id        String   @id @default(cuid())
+  label     String   @unique  // 例：「2026年度」
+  startYM   String                // 開始年月 YYYY-MM 例：「2026-04」
+  endYM     String                // 終了年月 YYYY-MM 例：「2026-12」
+  isCurrent Boolean  @default(false) // 現在の年度（1件のみtrue）
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // 補助：ユーザー（権限管理）
 model User {
   id         String   @id @default(cuid())

@@ -1,31 +1,41 @@
 import { prisma } from "@/lib/prisma";
 import { calcMonthlyPL } from "@/lib/domain/pl";
 import { calcCashflow } from "@/lib/domain/cf";
-import { getFiscalMonths } from "@/lib/domain/fiscal";
+import { getMonthsBetween, getFiscalMonths } from "@/lib/domain/fiscal";
 import { formatCurrencyFull, formatPercent } from "@/lib/format";
 import { REVENUE_BASIS_LABELS } from "@/lib/types";
 import Link from "next/link";
 
-type SearchParams = Promise<{ basis?: string; year?: string; tab?: string }>;
+type SearchParams = Promise<{ basis?: string; fy?: string; tab?: string }>;
 
 export default async function FinancePage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
-  const setting = await prisma.setting.findFirst();
-  const fiscalStartMonth = setting?.fiscalStartMonth ?? 4;
-  const year = params.year ? parseInt(params.year) : 2026;
+  const [setting, fiscalYears, projects] = await Promise.all([
+    prisma.setting.findFirst(),
+    prisma.fiscalYear.findMany({ orderBy: { startYM: "asc" } }),
+    prisma.project.findMany({
+      include: {
+        invoices: { include: { payments: true } },
+        costs: true,
+      },
+    }),
+  ]);
+
   const basis = (params.basis ?? setting?.defaultRevenueBasis ?? "DELIVERY") as
     | "DELIVERY"
     | "INVOICE"
     | "CONTRACT";
   const tab = (params.tab ?? "pl") as "pl" | "cf";
 
-  const months = getFiscalMonths({ startMonth: fiscalStartMonth, year });
-  const projects = await prisma.project.findMany({
-    include: {
-      invoices: { include: { payments: true } },
-      costs: true,
-    },
-  });
+  // 表示する会計年度を決定（URLパラメータ or 現在年度）
+  const selectedFY =
+    fiscalYears.find((fy) => fy.id === params.fy) ??
+    fiscalYears.find((fy) => fy.isCurrent) ??
+    fiscalYears[0];
+
+  const months = selectedFY
+    ? getMonthsBetween(selectedFY.startYM, selectedFY.endYM)
+    : getFiscalMonths({ startMonth: setting?.fiscalStartMonth ?? 4, year: 2026 });
 
   const plRows = calcMonthlyPL({
     projects: projects.map((p) => ({
@@ -73,34 +83,61 @@ export default async function FinancePage({ searchParams }: { searchParams: Sear
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-start mb-4 flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold">財務（PL / CF）</h1>
-          <p className="text-xs text-slate-500 mt-1">
-            {year}年度（{fiscalStartMonth}月開始）
+          <p className="text-xs text-slate-700 mt-1">
+            {selectedFY
+              ? `${selectedFY.label}（${selectedFY.startYM} 〜 ${selectedFY.endYM}・${months.length}ヶ月）`
+              : "—"}
           </p>
         </div>
-        <div className="flex gap-2">
-          {(["DELIVERY", "INVOICE", "CONTRACT"] as const).map((b) => (
-            <Link
-              key={b}
-              href={`/finance?basis=${b}&year=${year}&tab=${tab}`}
-              className={`px-3 py-1.5 rounded-lg text-xs ${
-                basis === b
-                  ? "bg-blue-600 text-white"
-                  : "bg-white border border-slate-200 text-slate-600"
-              }`}
-            >
-              {REVENUE_BASIS_LABELS[b]}
-            </Link>
-          ))}
+        <div className="flex flex-col gap-2 items-end">
+          {/* 会計年度切替 */}
+          {fiscalYears.length > 0 && (
+            <div className="flex gap-1">
+              <span className="text-[10px] text-slate-700 font-semibold mr-1 self-center">
+                会計年度:
+              </span>
+              {fiscalYears.map((fy) => (
+                <Link
+                  key={fy.id}
+                  href={`/finance?basis=${basis}&fy=${fy.id}&tab=${tab}`}
+                  className={`px-2 py-1 rounded text-[11px] ${
+                    selectedFY?.id === fy.id
+                      ? "bg-blue-600 text-white font-semibold"
+                      : "bg-white border border-slate-300 text-slate-700"
+                  }`}
+                >
+                  {fy.label}
+                  {fy.isCurrent && " ★"}
+                </Link>
+              ))}
+            </div>
+          )}
+          {/* 売上計上基準 */}
+          <div className="flex gap-2">
+            {(["DELIVERY", "INVOICE", "CONTRACT"] as const).map((b) => (
+              <Link
+                key={b}
+                href={`/finance?basis=${b}&fy=${selectedFY?.id ?? ""}&tab=${tab}`}
+                className={`px-3 py-1.5 rounded-lg text-xs ${
+                  basis === b
+                    ? "bg-blue-600 text-white font-semibold"
+                    : "bg-white border border-slate-300 text-slate-700"
+                }`}
+              >
+                {REVENUE_BASIS_LABELS[b]}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* タブ */}
       <div className="flex gap-0 border-b-2 border-slate-200 mb-4">
         <Link
-          href={`/finance?basis=${basis}&year=${year}&tab=pl`}
+          href={`/finance?basis=${basis}&fy=${selectedFY?.id ?? ""}&tab=pl`}
           className={`px-4 py-2 text-sm ${
             tab === "pl"
               ? "text-blue-600 border-b-2 border-blue-600 -mb-0.5 font-semibold"
@@ -110,7 +147,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Sear
           📊 月次PL（損益）
         </Link>
         <Link
-          href={`/finance?basis=${basis}&year=${year}&tab=cf`}
+          href={`/finance?basis=${basis}&fy=${selectedFY?.id ?? ""}&tab=cf`}
           className={`px-4 py-2 text-sm ${
             tab === "cf"
               ? "text-blue-600 border-b-2 border-blue-600 -mb-0.5 font-semibold"

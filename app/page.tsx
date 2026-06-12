@@ -1,14 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { calcPaymentRate, calcFunnel } from "@/lib/domain/kpi";
 import { calcCashflow } from "@/lib/domain/cf";
-import { getFiscalMonths } from "@/lib/domain/fiscal";
-import { getScheduledAmount, getInitialAmount, getActualAmount } from "@/lib/domain/license";
+import { getMonthsBetween, getFiscalMonths } from "@/lib/domain/fiscal";
+import { getScheduledAmount, getActualAmount } from "@/lib/domain/license";
 import { formatCurrency, formatPercent, formatCurrencyFull } from "@/lib/format";
 import { STATUS_LABELS, PROGRESS_LABELS } from "@/lib/types";
 import Link from "next/link";
 
 export default async function DashboardPage() {
-  const [setting, projects, clientBudgets, licenses] = await Promise.all([
+  const [setting, projects, clientBudgets, licenses, currentFY] = await Promise.all([
     prisma.setting.findFirst(),
     prisma.project.findMany({
       include: {
@@ -22,12 +22,20 @@ export default async function DashboardPage() {
     prisma.licenseContract.findMany({
       include: { schedules: true, actuals: true },
     }),
+    prisma.fiscalYear.findFirst({ where: { isCurrent: true } }),
   ]);
 
-  const fiscalYear = 2026;
-  const fiscalStartMonth = setting?.fiscalStartMonth ?? 4;
-  const months = getFiscalMonths({ startMonth: fiscalStartMonth, year: fiscalYear });
-  const thisMonth = "2026-05"; // ダッシュボードの基準月（実機ではDate.now()を使う）
+  // 会計年度：DBから現在の年度を取得（無ければ 設定の開始月から12ヶ月生成）
+  const fiscalLabel = currentFY?.label ?? "—";
+  const fiscalStartYM = currentFY?.startYM ?? `2026-${String(setting?.fiscalStartMonth ?? 4).padStart(2, "0")}`;
+  const fiscalEndYM = currentFY?.endYM ?? `2027-${String(((setting?.fiscalStartMonth ?? 4) + 11) % 12 || 12).padStart(2, "0")}`;
+  const months = currentFY
+    ? getMonthsBetween(currentFY.startYM, currentFY.endYM)
+    : getFiscalMonths({ startMonth: setting?.fiscalStartMonth ?? 4, year: 2026 });
+  // 基準月（今月）：当年度内なら現実の今月、年度外なら年度の先頭月
+  const today = new Date();
+  const todayYM = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
+  const thisMonth = months.includes(todayYM) ? todayYM : months[0];
 
   const payment = calcPaymentRate(projects);
   const funnel = calcFunnel(projects);
@@ -52,7 +60,7 @@ export default async function DashboardPage() {
   const thisMonthInflow = thisMonthCF?.inflow ?? 0;
 
   // 入金遅延（dueDate 過去 かつ 未入金）
-  const today = new Date("2026-05-19T00:00:00Z");
+  const nowDate = new Date();
   let overdueAmount = 0;
   let overdueCount = 0;
   for (const p of projects) {
@@ -60,7 +68,7 @@ export default async function DashboardPage() {
       if (!inv.dueDate) continue;
       const paid = inv.payments.reduce((s, x) => s + x.amount, 0);
       const remaining = inv.amount - paid;
-      if (remaining > 0 && inv.dueDate < today) {
+      if (remaining > 0 && inv.dueDate < nowDate) {
         overdueAmount += remaining;
         overdueCount += 1;
       }
@@ -73,8 +81,9 @@ export default async function DashboardPage() {
     <div className="p-6 max-w-[1600px]">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-slate-900">ダッシュボード</h1>
-        <p className="text-xs text-slate-500 mt-1">
-          {fiscalYear}年度（{fiscalStartMonth}月開始） ／ 基準月：{thisMonth}
+        <p className="text-xs text-slate-700 mt-1">
+          {fiscalLabel}（{fiscalStartYM} 〜 {fiscalEndYM}・{months.length}ヶ月）／ 基準月：
+          <strong>{thisMonth}</strong>
         </p>
       </div>
 

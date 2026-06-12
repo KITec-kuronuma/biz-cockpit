@@ -131,6 +131,42 @@ export async function deleteLicense(licenseId: string) {
   revalidatePath("/");
 }
 
+// ===== 期初予算スケジュール（月別変則予算・複数登録可） =====
+
+const initialScheduleSchema = z.object({
+  licenseId: z.string(),
+  effectiveMonth: z.string().regex(/^\d{4}-\d{2}$/, "YYYY-MM形式"),
+  amount: z.coerce.number().int().min(0),
+  note: z.string().optional(),
+});
+
+export async function addLicenseInitialSchedule(formData: FormData) {
+  const data = initialScheduleSchema.parse({
+    licenseId: formData.get("licenseId"),
+    effectiveMonth: formData.get("effectiveMonth"),
+    amount: formData.get("amount"),
+    note: formData.get("note") || undefined,
+  });
+  await prisma.licenseInitialSchedule.create({
+    data: {
+      licenseId: data.licenseId,
+      effectiveMonth: data.effectiveMonth,
+      amount: data.amount,
+      note: data.note ?? null,
+    },
+  });
+  revalidatePath(`/contracts/${data.licenseId}/edit`);
+  revalidatePath("/contracts");
+  revalidatePath("/");
+}
+
+export async function deleteLicenseInitialSchedule(scheduleId: string, licenseId: string) {
+  await prisma.licenseInitialSchedule.delete({ where: { id: scheduleId } });
+  revalidatePath(`/contracts/${licenseId}/edit`);
+  revalidatePath("/contracts");
+  revalidatePath("/");
+}
+
 // ===== 計上予定スケジュール（適用開始月ベース・複数登録可） =====
 
 const scheduleSchema = z.object({

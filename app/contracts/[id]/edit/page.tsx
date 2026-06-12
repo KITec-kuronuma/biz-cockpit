@@ -6,6 +6,8 @@ import {
   deleteLicense,
   addLicenseSchedule,
   deleteLicenseSchedule,
+  addLicenseInitialSchedule,
+  deleteLicenseInitialSchedule,
 } from "../../actions";
 import { formatCurrencyFull } from "@/lib/format";
 import Link from "next/link";
@@ -17,7 +19,7 @@ function toInputDate(d: Date | null | undefined): string {
 
 export default async function EditLicensePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [license, clients, projects, schedules] = await Promise.all([
+  const [license, clients, projects, schedules, initialSchedules] = await Promise.all([
     prisma.licenseContract.findUnique({ where: { id } }),
     prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.project.findMany({
@@ -25,6 +27,10 @@ export default async function EditLicensePage({ params }: { params: Promise<{ id
       select: { id: true, title: true, clientId: true },
     }),
     prisma.licenseMonthlySchedule.findMany({
+      where: { licenseId: id },
+      orderBy: { effectiveMonth: "asc" },
+    }),
+    prisma.licenseInitialSchedule.findMany({
       where: { licenseId: id },
       orderBy: { effectiveMonth: "asc" },
     }),
@@ -80,6 +86,106 @@ export default async function EditLicensePage({ params }: { params: Promise<{ id
           action={bound}
           submitLabel="更新する"
         />
+      </div>
+
+      {/* 期初予算スケジュール（月別変則予算対応） */}
+      <div className="bg-white rounded-xl border border-amber-300 p-6 mb-6">
+        <h2 className="text-base font-bold text-slate-900 mb-2">
+          🎯 期初予算スケジュール（{initialSchedules.length}件）
+        </h2>
+        <p className="text-xs text-slate-700 mb-4">
+          期初予算が月によって異なる場合（例：最初3ヶ月だけ¥50K予算・以降¥100K予算）に複数登録します。
+          <br />
+          未登録の場合は <code className="bg-slate-100 px-1.5 rounded">期初予想額（¥{license.initialMonthlyAmount.toLocaleString()}）</code>{" "}
+          が全月に適用されます。
+        </p>
+
+        <div className="bg-amber-50 border border-amber-200 rounded p-3 mb-4 text-xs text-slate-700">
+          <strong>例：期初予算が「4-6月 ¥50,000」「7月以降 ¥100,000」</strong>
+          <div className="mt-1.5 ml-4">
+            <div>① 適用開始月: <code className="bg-white px-1.5 rounded">2026-04</code>　金額: ¥50,000　メモ: 期初プロモ予算</div>
+            <div>② 適用開始月: <code className="bg-white px-1.5 rounded">2026-07</code>　金額: ¥100,000　メモ: 通常予算</div>
+          </div>
+        </div>
+
+        <table className="w-full text-sm mb-4">
+          <thead className="bg-slate-100">
+            <tr className="border-b-2 border-slate-300 text-left">
+              <th className="px-3 py-2 text-slate-800 font-bold">適用開始月</th>
+              <th className="px-3 text-right text-slate-800 font-bold">期初予算額</th>
+              <th className="px-3 text-slate-800 font-bold">メモ</th>
+              <th className="px-3 text-slate-800 font-bold">登録日</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {initialSchedules.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-3 py-4 text-center text-xs text-slate-500">
+                  月別予算は未登録（期初予想額が全月に適用されます）
+                </td>
+              </tr>
+            )}
+            {initialSchedules.map((s) => (
+              <tr key={s.id} className="border-b border-slate-200 hover:bg-amber-50">
+                <td className="px-3 py-2 font-semibold text-slate-900">{s.effectiveMonth}</td>
+                <td className="px-3 text-right font-semibold text-amber-700">
+                  {formatCurrencyFull(s.amount)}
+                </td>
+                <td className="px-3 text-xs text-slate-700">{s.note ?? "—"}</td>
+                <td className="px-3 text-xs text-slate-600">
+                  {s.createdAt.toISOString().slice(0, 10)}
+                </td>
+                <td className="px-3">
+                  <form action={deleteLicenseInitialSchedule.bind(null, s.id, id)} className="inline">
+                    <button className="text-xs text-red-600 hover:underline">削除</button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <form
+          action={addLicenseInitialSchedule}
+          className="flex gap-2 items-end border-t pt-4 flex-wrap"
+        >
+          <input type="hidden" name="licenseId" value={id} />
+          <div>
+            <label className="text-[10px] text-slate-700 font-semibold block">
+              適用開始月（YYYY-MM）
+            </label>
+            <input
+              type="month"
+              name="effectiveMonth"
+              required
+              className="border border-slate-300 rounded px-2 py-1 text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-700 font-semibold block">期初予算（月額）</label>
+            <input
+              type="number"
+              name="amount"
+              required
+              min="0"
+              placeholder="50000"
+              className="border border-slate-300 rounded px-2 py-1 text-xs w-32"
+            />
+          </div>
+          <div className="flex-1 min-w-40">
+            <label className="text-[10px] text-slate-700 font-semibold block">メモ（任意）</label>
+            <input
+              type="text"
+              name="note"
+              placeholder="期初プロモ予算 / 通常予算 等"
+              className="border border-slate-300 rounded px-2 py-1 text-xs w-full"
+            />
+          </div>
+          <button className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold">
+            ＋ 期初予算スケジュール追加
+          </button>
+        </form>
       </div>
 
       {/* 計上予定スケジュール（複数登録可・段階課金/プロモ価格対応） */}

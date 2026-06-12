@@ -50,10 +50,24 @@ model LicenseContract {
   memorandum           String?                   // 覚書（フリー入力）
   quoteSentMonth       String?                   // 見積書送付月（YYYY-MM）
   note                 String?
+  initialSchedules     LicenseInitialSchedule[]
   schedules            LicenseMonthlySchedule[]
   actuals              LicenseMonthlyActual[]
   createdAt            DateTime                  @default(now())
   updatedAt            DateTime                  @updatedAt
+}
+
+// ライセンス期初予算の月別スケジュール（変則予算対応）
+model LicenseInitialSchedule {
+  id             String          @id @default(cuid())
+  licenseId      String
+  license        LicenseContract @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  effectiveMonth String          // YYYY-MM - この月以降に適用
+  amount         Int
+  note           String?
+  createdAt      DateTime        @default(now())
+
+  @@index([licenseId, effectiveMonth])
 }
 
 // ライセンス計上予定額の変更履歴（適用開始月ベース）

@@ -18,6 +18,7 @@ export interface LicenseLike {
   startDate: Date;
   endDate: Date | null;
   status: string;
+  initialSchedules?: LicenseScheduleEntry[];
   schedules: LicenseScheduleEntry[];
   actuals: LicenseActualEntry[];
 }
@@ -45,9 +46,20 @@ export function getScheduledAmount(license: LicenseLike, yearMonth: string): num
 
 /**
  * 指定月の期初予想額を取得
+ * - initialSchedules があれば適用月ベースで採用
+ * - なければ initialMonthlyAmount をフォールバック
  */
 export function getInitialAmount(license: LicenseLike, yearMonth: string): number {
   if (!isActiveInMonth(license, yearMonth)) return 0;
+  const initSched = license.initialSchedules ?? [];
+  if (initSched.length > 0) {
+    const applicable = initSched
+      .filter((s) => s.effectiveMonth <= yearMonth)
+      .sort((a, b) => b.effectiveMonth.localeCompare(a.effectiveMonth));
+    if (applicable.length > 0) {
+      return normalizeByBillingCycle(applicable[0].amount, license.billingCycle, yearMonth);
+    }
+  }
   return normalizeByBillingCycle(license.initialMonthlyAmount, license.billingCycle, yearMonth);
 }
 

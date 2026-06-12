@@ -20,7 +20,7 @@ export default async function DashboardPage() {
     }),
     prisma.clientMonthlyBudget.findMany({ include: { client: true } }),
     prisma.licenseContract.findMany({
-      include: { schedules: true, actuals: true },
+      include: { schedules: true, actuals: true, initialSchedules: true },
     }),
     prisma.fiscalYear.findFirst({ where: { isCurrent: true } }),
   ]);

@@ -1,7 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { LicenseForm } from "@/components/contracts/LicenseForm";
-import { updateLicense, deleteLicense } from "../../actions";
+import {
+  updateLicense,
+  deleteLicense,
+  addLicenseSchedule,
+  deleteLicenseSchedule,
+} from "../../actions";
+import { formatCurrencyFull } from "@/lib/format";
 import Link from "next/link";
 
 function toInputDate(d: Date | null | undefined): string {
@@ -11,12 +17,16 @@ function toInputDate(d: Date | null | undefined): string {
 
 export default async function EditLicensePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [license, clients, projects] = await Promise.all([
+  const [license, clients, projects, schedules] = await Promise.all([
     prisma.licenseContract.findUnique({ where: { id } }),
     prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.project.findMany({
       orderBy: { title: "asc" },
       select: { id: true, title: true, clientId: true },
+    }),
+    prisma.licenseMonthlySchedule.findMany({
+      where: { licenseId: id },
+      orderBy: { effectiveMonth: "asc" },
     }),
   ]);
   if (!license) return notFound();
@@ -62,7 +72,7 @@ export default async function EditLicensePage({ params }: { params: Promise<{ id
           </button>
         </form>
       </div>
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
+      <div className="bg-white rounded-xl border border-slate-200 p-6 mb-6">
         <LicenseForm
           clients={clients}
           projects={projects}
@@ -70,6 +80,107 @@ export default async function EditLicensePage({ params }: { params: Promise<{ id
           action={bound}
           submitLabel="更新する"
         />
+      </div>
+
+      {/* 計上予定スケジュール（複数登録可・段階課金/プロモ価格対応） */}
+      <div className="bg-white rounded-xl border border-slate-300 p-6">
+        <h2 className="text-base font-bold text-slate-900 mb-2">
+          📊 計上予定スケジュール（{schedules.length}件）
+        </h2>
+        <p className="text-xs text-slate-700 mb-4">
+          月ごとに金額が変わる契約（プロモ価格・段階課金など）はここで複数登録できます。
+          <br />
+          各エントリーは「<strong>適用開始月以降、次のエントリーまで</strong>」その金額が適用されます。
+        </p>
+
+        <div className="bg-amber-50 border border-amber-200 rounded p-3 mb-4 text-xs text-slate-700">
+          <strong>例：最初3ヶ月だけ ¥50,000、4ヶ月目から ¥100,000（2026-04開始）</strong>
+          <div className="mt-1.5 ml-4">
+            <div>① 適用開始月: <code className="bg-white px-1.5 rounded">2026-04</code>　金額: ¥50,000　メモ: プロモ期間</div>
+            <div>② 適用開始月: <code className="bg-white px-1.5 rounded">2026-07</code>　金額: ¥100,000　メモ: 通常価格</div>
+          </div>
+        </div>
+
+        <table className="w-full text-sm mb-4">
+          <thead className="bg-slate-100">
+            <tr className="border-b-2 border-slate-300 text-left">
+              <th className="px-3 py-2 text-slate-800 font-bold">適用開始月</th>
+              <th className="px-3 text-right text-slate-800 font-bold">金額</th>
+              <th className="px-3 text-slate-800 font-bold">メモ</th>
+              <th className="px-3 text-slate-800 font-bold">登録日</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {schedules.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-3 py-4 text-center text-xs text-slate-500">
+                  スケジュールはまだありません
+                </td>
+              </tr>
+            )}
+            {schedules.map((s) => (
+              <tr key={s.id} className="border-b border-slate-200 hover:bg-slate-50">
+                <td className="px-3 py-2 font-semibold text-slate-900">{s.effectiveMonth}</td>
+                <td className="px-3 text-right font-semibold text-blue-700">
+                  {formatCurrencyFull(s.amount)}
+                </td>
+                <td className="px-3 text-xs text-slate-700">{s.note ?? "—"}</td>
+                <td className="px-3 text-xs text-slate-600">
+                  {s.createdAt.toISOString().slice(0, 10)}
+                </td>
+                <td className="px-3">
+                  <form action={deleteLicenseSchedule.bind(null, s.id, id)} className="inline">
+                    <button className="text-xs text-red-600 hover:underline">削除</button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <form action={addLicenseSchedule} className="flex gap-2 items-end border-t pt-4 flex-wrap">
+          <input type="hidden" name="licenseId" value={id} />
+          <div>
+            <label className="text-[10px] text-slate-700 font-semibold block">
+              適用開始月（YYYY-MM）
+            </label>
+            <input
+              type="month"
+              name="effectiveMonth"
+              required
+              className="border border-slate-300 rounded px-2 py-1 text-xs"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-700 font-semibold block">金額（月額）</label>
+            <input
+              type="number"
+              name="amount"
+              required
+              min="0"
+              placeholder="50000"
+              className="border border-slate-300 rounded px-2 py-1 text-xs w-32"
+            />
+          </div>
+          <div className="flex-1 min-w-40">
+            <label className="text-[10px] text-slate-700 font-semibold block">メモ（任意）</label>
+            <input
+              type="text"
+              name="note"
+              placeholder="プロモ期間 / 通常価格 等"
+              className="border border-slate-300 rounded px-2 py-1 text-xs w-full"
+            />
+          </div>
+          <button className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-semibold">
+            ＋ スケジュール追加
+          </button>
+        </form>
+
+        <div className="mt-3 px-3 py-2 bg-blue-50 rounded text-[11px] text-slate-700">
+          💡 ダッシュボード・財務画面では、各月でこのスケジュールから自動的に金額が選択されます。
+          実績との差分は「ライセンス契約一覧」で確認できます。
+        </div>
       </div>
     </div>
   );

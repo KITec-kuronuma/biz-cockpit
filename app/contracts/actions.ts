@@ -131,6 +131,66 @@ export async function deleteLicense(licenseId: string) {
   revalidatePath("/");
 }
 
+// ===== 計上予定スケジュール（適用開始月ベース・複数登録可） =====
+
+const scheduleSchema = z.object({
+  licenseId: z.string(),
+  effectiveMonth: z.string().regex(/^\d{4}-\d{2}$/, "YYYY-MM形式"),
+  amount: z.coerce.number().int().min(0),
+  note: z.string().optional(),
+});
+
+export async function addLicenseSchedule(formData: FormData) {
+  const data = scheduleSchema.parse({
+    licenseId: formData.get("licenseId"),
+    effectiveMonth: formData.get("effectiveMonth"),
+    amount: formData.get("amount"),
+    note: formData.get("note") || undefined,
+  });
+  await prisma.licenseMonthlySchedule.create({
+    data: {
+      licenseId: data.licenseId,
+      effectiveMonth: data.effectiveMonth,
+      amount: data.amount,
+      note: data.note ?? null,
+    },
+  });
+  // 直近の最新値を monthlyAmount にも反映（ダッシュ用フォールバック）
+  const all = await prisma.licenseMonthlySchedule.findMany({
+    where: { licenseId: data.licenseId },
+    orderBy: { effectiveMonth: "desc" },
+    take: 1,
+  });
+  if (all[0]) {
+    await prisma.licenseContract.update({
+      where: { id: data.licenseId },
+      data: { monthlyAmount: all[0].amount },
+    });
+  }
+  revalidatePath(`/contracts/${data.licenseId}/edit`);
+  revalidatePath("/contracts");
+  revalidatePath("/");
+}
+
+export async function deleteLicenseSchedule(scheduleId: string, licenseId: string) {
+  await prisma.licenseMonthlySchedule.delete({ where: { id: scheduleId } });
+  // 残スケジュールの最新値を monthlyAmount に反映
+  const all = await prisma.licenseMonthlySchedule.findMany({
+    where: { licenseId },
+    orderBy: { effectiveMonth: "desc" },
+    take: 1,
+  });
+  if (all[0]) {
+    await prisma.licenseContract.update({
+      where: { id: licenseId },
+      data: { monthlyAmount: all[0].amount },
+    });
+  }
+  revalidatePath(`/contracts/${licenseId}/edit`);
+  revalidatePath("/contracts");
+  revalidatePath("/");
+}
+
 // ===== 月次実績 =====
 
 const actualSchema = z.object({

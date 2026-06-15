@@ -5,7 +5,13 @@ import Link from "next/link";
 
 export default async function ProjectsPage() {
   const projects = await prisma.project.findMany({
-    include: { client: true, invoices: { include: { payments: true } } },
+    include: {
+      client: true,
+      invoices: {
+        include: { payments: true },
+        orderBy: { invoiceDate: "asc" },
+      },
+    },
     orderBy: { updatedAt: "desc" },
   });
 
@@ -18,13 +24,13 @@ export default async function ProjectsPage() {
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-xs text-slate-500 border-b border-slate-200 bg-slate-50">
+            <tr className="text-left text-xs text-slate-700 font-bold border-b-2 border-slate-300 bg-slate-100">
               <th className="px-3 py-2">案件名</th>
               <th className="px-3">取引先</th>
               <th className="px-3 text-right">契約金額</th>
               <th className="px-3">契約状況</th>
               <th className="px-3">進捗</th>
-              <th className="px-3">契約日</th>
+              <th className="px-3">請求日</th>
               <th className="px-3">納品日</th>
               <th className="px-3 text-right">入金率</th>
             </tr>
@@ -52,7 +58,21 @@ export default async function ProjectsPage() {
                     </span>
                   </td>
                   <td className="px-3 text-xs">{PROGRESS_LABELS[p.progress]}</td>
-                  <td className="px-3 text-xs">{formatDate(p.contractDate)}</td>
+                  <td className="px-3 text-xs">
+                    {p.invoices.length === 0 ? (
+                      <span className="text-slate-400">—</span>
+                    ) : p.invoices.length === 1 ? (
+                      formatDate(p.invoices[0].invoiceDate)
+                    ) : (
+                      <span title={p.invoices.map((i) => formatDate(i.invoiceDate)).join("\n")}>
+                        {formatDate(p.invoices[0].invoiceDate)}
+                        <span className="text-slate-500 ml-1">
+                          〜 {formatDate(p.invoices[p.invoices.length - 1].invoiceDate)}
+                          <span className="ml-1 text-[10px]">({p.invoices.length}件)</span>
+                        </span>
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 text-xs">{formatDate(p.deliveryDate)}</td>
                   <td className="px-3 text-right text-xs">
                     {rate === null ? "—" : formatPercent(rate)}

@@ -135,14 +135,17 @@ export default async function DashboardPage() {
         }
 
         // ライセンス：予算・計上予定・実績を月別加算
+        // 売上予定 = scheduled - actual（二重計上回避：実績化された分は予定から除外）
         for (const l of licenses) {
           for (const m of months) {
             // 予算（期初予算）
             byMonth[m].budget += getInitialAmount(l, m);
-            // 計上予定（売上予定）
-            byMonth[m].forecast += getScheduledAmount(l, m);
-            // 実績（年額：契約期間内自動、月額：過去月自動、当月：請求済記録があれば）
-            byMonth[m].actual += getEffectiveActualAmount(l, m, thisMonth);
+            const scheduled = getScheduledAmount(l, m);
+            const actual = getEffectiveActualAmount(l, m, thisMonth);
+            // 実績（年額：契約期間内、月額：過去月＋当月請求済、一括：契約開始月）
+            byMonth[m].actual += actual;
+            // 売上予定 = 計上予定のうちまだ実績化されていない分（年額：契約終了後の更新分など）
+            byMonth[m].forecast += Math.max(0, scheduled - actual);
           }
         }
 

@@ -38,10 +38,10 @@ export function getScheduledAmount(license: LicenseLike, yearMonth: string): num
     .sort((a, b) => b.effectiveMonth.localeCompare(a.effectiveMonth));
 
   if (applicable.length > 0) {
-    return normalizeByBillingCycle(applicable[0].amount, license.billingCycle, yearMonth);
+    return normalizeByBillingCycle(applicable[0].amount, license, yearMonth);
   }
   // 履歴がなければ初期値
-  return normalizeByBillingCycle(license.initialMonthlyAmount, license.billingCycle, yearMonth);
+  return normalizeByBillingCycle(license.initialMonthlyAmount, license, yearMonth);
 }
 
 /**
@@ -57,10 +57,10 @@ export function getInitialAmount(license: LicenseLike, yearMonth: string): numbe
       .filter((s) => s.effectiveMonth <= yearMonth)
       .sort((a, b) => b.effectiveMonth.localeCompare(a.effectiveMonth));
     if (applicable.length > 0) {
-      return normalizeByBillingCycle(applicable[0].amount, license.billingCycle, yearMonth);
+      return normalizeByBillingCycle(applicable[0].amount, license, yearMonth);
     }
   }
-  return normalizeByBillingCycle(license.initialMonthlyAmount, license.billingCycle, yearMonth);
+  return normalizeByBillingCycle(license.initialMonthlyAmount, license, yearMonth);
 }
 
 /**
@@ -164,19 +164,38 @@ function isActiveInMonth(license: LicenseLike, yearMonth: string): boolean {
 
 /**
  * 課金周期に応じて月額換算
+ * - MONTHLY: そのまま
+ * - YEARLY: 加入期間で均等割（endDateが無ければ12ヶ月）
+ * - ONE_TIME: 契約開始月のみ全額
  */
-function normalizeByBillingCycle(amount: number, cycle: string, yearMonth: string): number {
-  if (cycle === "MONTHLY") return amount;
-  if (cycle === "YEARLY") {
-    // 年額契約は契約開始月だけに計上する想定（単純化）
-    // ※実装簡素化のため、年額の場合は12分割で表示
-    return Math.round(amount / 12);
+function normalizeByBillingCycle(
+  amount: number,
+  license: LicenseLike,
+  yearMonth: string
+): number {
+  if (license.billingCycle === "MONTHLY") return amount;
+  if (license.billingCycle === "YEARLY") {
+    const months = getContractMonths(license);
+    return Math.round(amount / months);
   }
-  if (cycle === "ONE_TIME") {
-    // 一括契約は契約開始月のみ
-    return 0; // 個別計上として扱う場合は別途
+  if (license.billingCycle === "ONE_TIME") {
+    // 契約開始月のみ全額計上
+    const startYM = toYearMonth(license.startDate);
+    return yearMonth === startYM ? amount : 0;
   }
   return amount;
+}
+
+/**
+ * 加入期間（月数）を計算
+ */
+export function getContractMonths(license: LicenseLike): number {
+  if (!license.endDate) return 12;
+  const startYM = toYearMonth(license.startDate);
+  const endYM = toYearMonth(license.endDate);
+  const [sy, sm] = startYM.split("-").map(Number);
+  const [ey, em] = endYM.split("-").map(Number);
+  return Math.max((ey - sy) * 12 + (em - sm) + 1, 1);
 }
 
 function toYearMonth(d: Date): string {

@@ -9,6 +9,11 @@ import {
   isPendingBilling,
 } from "@/lib/domain/license";
 import { PendingBillingWidget, PendingItem } from "@/components/dashboard/PendingBillingWidget";
+import {
+  MonthlyDetailTable,
+  type MonthlyData,
+  type BreakdownItem,
+} from "@/components/dashboard/MonthlyDetailTable";
 import { formatCurrency, formatPercent, formatCurrencyFull } from "@/lib/format";
 import { STATUS_LABELS, PROGRESS_LABELS } from "@/lib/types";
 import Link from "next/link";
@@ -299,74 +304,127 @@ export default async function DashboardPage() {
               )}
             </div>
 
-            {/* 月次明細テーブル */}
-            <div className="bg-white rounded-xl border border-slate-300 p-5 mb-6 overflow-x-auto">
-              <h2 className="text-base font-bold mb-3 text-slate-900">月次明細</h2>
-              <table className="w-full text-sm">
-                <thead className="bg-slate-100">
-                  <tr className="border-b-2 border-slate-300">
-                    <th className="px-3 py-2.5 text-left text-slate-800 font-bold">月</th>
-                    <th className="px-3 text-right text-slate-800 font-bold">予算</th>
-                    <th className="px-3 text-right text-slate-800 font-bold">実績</th>
-                    <th className="px-3 text-right text-slate-800 font-bold">売上予定</th>
-                    <th className="px-3 text-right text-slate-800 font-bold">予算 − 実績</th>
-                    <th className="px-3 text-right text-slate-800 font-bold">実績達成率</th>
-                    <th className="px-3 text-right text-slate-800 font-bold">予算 − (実績+予定)</th>
-                    <th className="px-3 text-right text-slate-800 font-bold">着地達成率</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {months.map((m) => {
-                    const { budget, actual, forecast } = byMonth[m];
-                    const landingAdj = m > thisMonth ? actual + forecast : Math.max(actual + forecast, actual);
-                    const diffA = budget - actual;
-                    const diffL = budget - landingAdj;
-                    const rateA = budget > 0 ? actual / budget : 0;
-                    const rateL = budget > 0 ? landingAdj / budget : 0;
-                    const isCurrent = m === thisMonth;
-                    return (
-                      <tr
-                        key={m}
-                        className={`border-b border-slate-200 ${
-                          isCurrent ? "bg-blue-50 font-bold" : "hover:bg-slate-50"
-                        }`}
-                      >
-                        <td className="px-3 py-2 text-slate-900 font-semibold">{m}{isCurrent && " (当月)"}</td>
-                        <td className="px-3 text-right text-slate-900 font-semibold">{formatCurrencyFull(budget)}</td>
-                        <td className="px-3 text-right text-blue-700 font-semibold">{formatCurrencyFull(actual)}</td>
-                        <td className="px-3 text-right text-amber-700 font-semibold">{formatCurrencyFull(forecast)}</td>
-                        <td className={`px-3 text-right font-semibold ${diffA > 0 ? "text-red-700" : "text-emerald-700"}`}>
-                          {diffA >= 0 ? "+" : ""}{formatCurrencyFull(-diffA)}
-                        </td>
-                        <td className="px-3 text-right text-slate-900 font-semibold">{budget > 0 ? formatPercent(rateA) : "—"}</td>
-                        <td className={`px-3 text-right font-semibold ${diffL > 0 ? "text-red-700" : "text-emerald-700"}`}>
-                          {diffL >= 0 ? "+" : ""}{formatCurrencyFull(-diffL)}
-                        </td>
-                        <td className={`px-3 text-right font-bold ${rateL >= 1 ? "text-emerald-700" : "text-amber-700"}`}>
-                          {budget > 0 ? formatPercent(rateL) : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  <tr className="bg-slate-200 font-bold border-t-2 border-slate-400">
-                    <td className="px-3 py-2.5 text-slate-900">年間合計</td>
-                    <td className="px-3 text-right text-slate-900">{formatCurrencyFull(totalBudget)}</td>
-                    <td className="px-3 text-right text-blue-800">{formatCurrencyFull(totalActual)}</td>
-                    <td className="px-3 text-right text-amber-800">{formatCurrencyFull(totalFutureForecast + totalCurrentMonthForecast)}</td>
-                    <td className={`px-3 text-right ${diffActual < 0 ? "text-red-700" : "text-emerald-700"}`}>
-                      {diffActual >= 0 ? "+" : ""}{formatCurrencyFull(diffActual)}
-                    </td>
-                    <td className="px-3 text-right text-slate-900">{formatPercent(achievementRate)}</td>
-                    <td className={`px-3 text-right ${diffLanding < 0 ? "text-red-700" : "text-emerald-700"}`}>
-                      {diffLanding >= 0 ? "+" : ""}{formatCurrencyFull(diffLanding)}
-                    </td>
-                    <td className={`px-3 text-right ${landingRate >= 1 ? "text-emerald-700" : "text-amber-700"}`}>
-                      {formatPercent(landingRate)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            {/* 月次明細テーブル（クリックで内訳表示） */}
+            {(() => {
+              const monthlyData: MonthlyData[] = months.map((m) => {
+                const { budget, actual, forecast } = byMonth[m];
+                const budgetBreakdown: BreakdownItem[] = [];
+                const actualBreakdown: BreakdownItem[] = [];
+                const forecastBreakdown: BreakdownItem[] = [];
+
+                // 予算内訳：取引先別予算
+                for (const b of clientBudgets) {
+                  if (b.yearMonth === m && b.amount > 0) {
+                    budgetBreakdown.push({
+                      source: "client_budget",
+                      description: b.client.name,
+                      subDescription: b.note ?? undefined,
+                      amount: b.amount,
+                    });
+                  }
+                }
+                // 予算内訳：ライセンス期初予算
+                for (const l of licenses) {
+                  const v = getInitialAmount(l, m);
+                  if (v > 0) {
+                    budgetBreakdown.push({
+                      source: "license_initial",
+                      description: l.client.name,
+                      subDescription: `${l.productName}${l.planName ? " / " + l.planName : ""}`,
+                      amount: v,
+                    });
+                  }
+                }
+
+                // 実績内訳：案件請求
+                for (const p of projects) {
+                  for (const inv of p.invoices) {
+                    const ym = `${inv.invoiceDate.getUTCFullYear()}-${String(
+                      inv.invoiceDate.getUTCMonth() + 1
+                    ).padStart(2, "0")}`;
+                    if (ym === m && inv.amount > 0) {
+                      actualBreakdown.push({
+                        source: "invoice",
+                        description: p.client.name,
+                        subDescription: `${p.title}（請求日 ${inv.invoiceDate
+                          .toISOString()
+                          .slice(0, 10)}）`,
+                        amount: inv.amount,
+                      });
+                    }
+                  }
+                }
+                // 実績内訳：ライセンス
+                for (const l of licenses) {
+                  const v = getEffectiveActualAmount(l, m, thisMonth);
+                  if (v > 0) {
+                    actualBreakdown.push({
+                      source: "license_actual",
+                      description: l.client.name,
+                      subDescription: `${l.productName}${l.planName ? " / " + l.planName : ""}（${
+                        l.billingCycle === "YEARLY" ? "年額均等割" : l.billingCycle === "MONTHLY" ? "月額" : "一括"
+                      }）`,
+                      amount: v,
+                    });
+                  }
+                }
+
+                // 売上予定内訳：案件月別予定
+                for (const p of projects) {
+                  for (const f of p.forecasts) {
+                    if (f.yearMonth === m && f.amount > 0) {
+                      forecastBreakdown.push({
+                        source: "project_forecast",
+                        description: p.client.name,
+                        subDescription: `${p.title}${f.note ? " — " + f.note : ""}`,
+                        amount: f.amount,
+                      });
+                    }
+                  }
+                }
+                // 売上予定内訳：ライセンス（実績化されていない分）
+                for (const l of licenses) {
+                  const scheduled = getScheduledAmount(l, m);
+                  const actualL = getEffectiveActualAmount(l, m, thisMonth);
+                  const pending = scheduled - actualL;
+                  if (pending > 0) {
+                    forecastBreakdown.push({
+                      source: "license_scheduled",
+                      description: l.client.name,
+                      subDescription: `${l.productName}${l.planName ? " / " + l.planName : ""}`,
+                      amount: pending,
+                    });
+                  }
+                }
+
+                return {
+                  yearMonth: m,
+                  budget,
+                  actual,
+                  forecast,
+                  budgetBreakdown,
+                  actualBreakdown,
+                  forecastBreakdown,
+                };
+              });
+
+              return (
+                <MonthlyDetailTable
+                  months={monthlyData}
+                  thisMonth={thisMonth}
+                  totals={{
+                    budget: totalBudget,
+                    actual: totalActual,
+                    forecast: totalFutureForecast + totalCurrentMonthForecast,
+                    diffActual,
+                    diffLanding,
+                    achievementRate,
+                    landingRate,
+                  }}
+                />
+              );
+            })()}
+
           </>
         );
       })()}

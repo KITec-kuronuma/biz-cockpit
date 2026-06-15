@@ -6,9 +6,7 @@ import {
   getScheduledAmount,
   getInitialAmount,
   getEffectiveActualAmount,
-  isPendingBilling,
 } from "@/lib/domain/license";
-import { PendingBillingWidget, PendingItem } from "@/components/dashboard/PendingBillingWidget";
 import {
   MonthlyDetailTable,
   type MonthlyData,
@@ -98,25 +96,7 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* 今月の請求待ちライセンス */}
-      {(() => {
-        const pending: PendingItem[] = [];
-        for (const l of licenses) {
-          if (isPendingBilling(l, thisMonth, thisMonth)) {
-            pending.push({
-              id: l.id,
-              clientName: l.client.name,
-              productName: l.productName,
-              planName: l.planName,
-              yearMonth: thisMonth,
-              amount: getScheduledAmount(l, thisMonth),
-            });
-          }
-        }
-        return <PendingBillingWidget items={pending} />;
-      })()}
-
-      {(() => {
+{(() => {
         // ===== 月別 予算 / 実績 / 売上予定（見込み） を集計 =====
         const byMonth: Record<string, { budget: number; actual: number; forecast: number }> = {};
         months.forEach((m) => (byMonth[m] = { budget: 0, actual: 0, forecast: 0 }));

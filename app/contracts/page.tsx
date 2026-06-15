@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { formatCurrencyFull, formatDate } from "@/lib/format";
+import { getScheduledAmount, isPendingBilling } from "@/lib/domain/license";
+import { PendingBillingWidget, PendingItem } from "@/components/dashboard/PendingBillingWidget";
 import Link from "next/link";
 
 const SERVICE_TYPE_LABELS: Record<string, { label: string; color: string }> = {
@@ -27,9 +29,26 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 
 export default async function LicenseContractsPage() {
   const licenses = await prisma.licenseContract.findMany({
-    include: { client: true, project: true },
+    include: { client: true, project: true, schedules: true, actuals: true, initialSchedules: true },
     orderBy: [{ status: "asc" }, { startDate: "desc" }],
   });
+
+  // 当月の請求待ちライセンス（月額・未請求）
+  const today = new Date();
+  const thisMonth = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
+  const pendingItems: PendingItem[] = [];
+  for (const l of licenses) {
+    if (isPendingBilling(l, thisMonth, thisMonth)) {
+      pendingItems.push({
+        id: l.id,
+        clientName: l.client.name,
+        productName: l.productName,
+        planName: l.planName,
+        yearMonth: thisMonth,
+        amount: getScheduledAmount(l, thisMonth),
+      });
+    }
+  }
 
   // 集計
   const activeLicenses = licenses.filter((l) => l.status === "ACTIVE");
@@ -42,7 +61,6 @@ export default async function LicenseContractsPage() {
   const scheduledCancelCount = licenses.filter((l) => l.status === "SCHEDULED_CANCEL").length;
 
   // 60日以内の更新
-  const today = new Date();
   const upcoming = licenses.filter((l) => {
     if (l.status !== "ACTIVE" || !l.nextRenewalDate) return false;
     const days = Math.floor((l.nextRenewalDate.getTime() - today.getTime()) / 86400000);
@@ -76,6 +94,9 @@ export default async function LicenseContractsPage() {
           color={upcoming > 0 ? "amber" : "slate"}
         />
       </div>
+
+      {/* 今月の請求待ちライセンス（トグル開閉） */}
+      <PendingBillingWidget items={pendingItems} />
 
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl font-bold">ライセンス契約一覧</h1>

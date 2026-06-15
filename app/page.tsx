@@ -2,7 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { calcPaymentRate, calcFunnel } from "@/lib/domain/kpi";
 import { calcCashflow } from "@/lib/domain/cf";
 import { getMonthsBetween, getFiscalMonths } from "@/lib/domain/fiscal";
-import { getScheduledAmount, getActualAmount } from "@/lib/domain/license";
+import {
+  getScheduledAmount,
+  getInitialAmount,
+  getEffectiveActualAmount,
+  isPendingBilling,
+} from "@/lib/domain/license";
+import { PendingBillingWidget, PendingItem } from "@/components/dashboard/PendingBillingWidget";
 import { formatCurrency, formatPercent, formatCurrencyFull } from "@/lib/format";
 import { STATUS_LABELS, PROGRESS_LABELS } from "@/lib/types";
 import Link from "next/link";
@@ -20,7 +26,7 @@ export default async function DashboardPage() {
     }),
     prisma.clientMonthlyBudget.findMany({ include: { client: true } }),
     prisma.licenseContract.findMany({
-      include: { schedules: true, actuals: true, initialSchedules: true },
+      include: { client: true, schedules: true, actuals: true, initialSchedules: true },
     }),
     prisma.fiscalYear.findFirst({ where: { isCurrent: true } }),
   ]);
@@ -87,6 +93,24 @@ export default async function DashboardPage() {
         </p>
       </div>
 
+      {/* 今月の請求待ちライセンス */}
+      {(() => {
+        const pending: PendingItem[] = [];
+        for (const l of licenses) {
+          if (isPendingBilling(l, thisMonth, thisMonth)) {
+            pending.push({
+              id: l.id,
+              clientName: l.client.name,
+              productName: l.productName,
+              planName: l.planName,
+              yearMonth: thisMonth,
+              amount: getScheduledAmount(l, thisMonth),
+            });
+          }
+        }
+        return <PendingBillingWidget items={pending} />;
+      })()}
+
       {(() => {
         // ===== 月別 予算 / 実績 / 売上予定（見込み） を集計 =====
         const byMonth: Record<string, { budget: number; actual: number; forecast: number }> = {};
@@ -110,11 +134,15 @@ export default async function DashboardPage() {
           }
         }
 
-        // ライセンス：計上予定と実績を月別加算
+        // ライセンス：予算・計上予定・実績を月別加算
         for (const l of licenses) {
           for (const m of months) {
+            // 予算（期初予算）
+            byMonth[m].budget += getInitialAmount(l, m);
+            // 計上予定（売上予定）
             byMonth[m].forecast += getScheduledAmount(l, m);
-            byMonth[m].actual += getActualAmount(l, m);
+            // 実績（年額：契約期間内自動、月額：過去月自動、当月：請求済記録があれば）
+            byMonth[m].actual += getEffectiveActualAmount(l, m, thisMonth);
           }
         }
 

@@ -269,3 +269,29 @@ export async function deleteLicenseActual(actualId: string, licenseId: string) {
   revalidatePath(`/contracts/${licenseId}`);
   revalidatePath("/");
 }
+
+/**
+ * 「請求をかけた」ワンクリック処理
+ * 指定月の計上予定額を実績として記録する
+ */
+export async function markLicenseBilled(
+  licenseId: string,
+  yearMonth: string,
+  amount: number
+) {
+  await prisma.licenseMonthlyActual.upsert({
+    where: { licenseId_yearMonth: { licenseId, yearMonth } },
+    create: {
+      licenseId,
+      yearMonth,
+      amount,
+      note: "請求確定",
+    },
+    update: {
+      amount,
+    },
+  });
+  revalidatePath("/");
+  revalidatePath("/contracts");
+  revalidatePath(`/contracts/${licenseId}/edit`);
+}

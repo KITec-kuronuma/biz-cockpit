@@ -64,11 +64,77 @@ export function getInitialAmount(license: LicenseLike, yearMonth: string): numbe
 }
 
 /**
- * 指定月の実績額を取得
+ * 指定月の実績額を取得（明示的に記録された実績のみ）
  */
 export function getActualAmount(license: LicenseLike, yearMonth: string): number {
   const a = license.actuals.find((x) => x.yearMonth === yearMonth);
   return a ? a.amount : 0;
+}
+
+/**
+ * 指定月の「実績相当額」を計算
+ *  - LicenseMonthlyActual に記録があれば最優先（手動入力した請求実績）
+ *  - 年額契約：契約期間内なら scheduled をそのまま実績扱い、期間外は0
+ *  - 月額契約：過去月は scheduled を実績扱い、当月以降は0（要：請求済ボタン）
+ *  - 一括契約：契約開始月のみ、過去なら実績扱い
+ */
+export function getEffectiveActualAmount(
+  license: LicenseLike,
+  yearMonth: string,
+  currentMonth: string
+): number {
+  if (!isActiveInMonth(license, yearMonth)) return 0;
+
+  // 手動記録の実績が最優先
+  const recorded = license.actuals.find((x) => x.yearMonth === yearMonth);
+  if (recorded) return recorded.amount;
+
+  const scheduled = getScheduledAmount(license, yearMonth);
+  if (scheduled <= 0) return 0;
+
+  if (license.billingCycle === "YEARLY") {
+    // 年額：契約終了日内なら実績、終了日後（更新前提）は予定
+    if (license.endDate) {
+      const endYM = toYearMonth(license.endDate);
+      return yearMonth <= endYM ? scheduled : 0;
+    }
+    // 終了日未設定：過去〜当月は実績、未来は予定
+    return yearMonth <= currentMonth ? scheduled : 0;
+  }
+
+  if (license.billingCycle === "MONTHLY") {
+    // 月額：過去月は実績、当月以降は予定（要：請求済ボタン）
+    return yearMonth < currentMonth ? scheduled : 0;
+  }
+
+  if (license.billingCycle === "ONE_TIME") {
+    // 一括：契約開始月のみ計上
+    const startYM = toYearMonth(license.startDate);
+    if (yearMonth === startYM) {
+      return yearMonth <= currentMonth ? scheduled : 0;
+    }
+    return 0;
+  }
+
+  return 0;
+}
+
+/**
+ * 指定月が「請求未確定（実績計上待ち）」か判定
+ *  - 月額契約・当月のみ対象（請求をかけたら実績化）
+ */
+export function isPendingBilling(
+  license: LicenseLike,
+  yearMonth: string,
+  currentMonth: string
+): boolean {
+  if (license.billingCycle !== "MONTHLY") return false;
+  if (yearMonth !== currentMonth) return false;
+  if (!isActiveInMonth(license, yearMonth)) return false;
+  // 既に手動実績があれば確定済
+  const recorded = license.actuals.find((x) => x.yearMonth === yearMonth);
+  if (recorded) return false;
+  return getScheduledAmount(license, yearMonth) > 0;
 }
 
 /**

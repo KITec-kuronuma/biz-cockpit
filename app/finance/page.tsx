@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { calcMonthlyPL } from "@/lib/domain/pl";
 import { calcCashflow } from "@/lib/domain/cf";
 import { getMonthsBetween, getFiscalMonths } from "@/lib/domain/fiscal";
+import { getEffectiveActualAmount } from "@/lib/domain/license";
 import { formatCurrencyFull, formatPercent } from "@/lib/format";
 import { REVENUE_BASIS_LABELS } from "@/lib/types";
 import Link from "next/link";
@@ -10,7 +11,7 @@ type SearchParams = Promise<{ basis?: string; fy?: string; tab?: string }>;
 
 export default async function FinancePage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
-  const [setting, fiscalYears, projects] = await Promise.all([
+  const [setting, fiscalYears, projects, licenses] = await Promise.all([
     prisma.setting.findFirst(),
     prisma.fiscalYear.findMany({ orderBy: { startYM: "asc" } }),
     prisma.project.findMany({
@@ -18,6 +19,9 @@ export default async function FinancePage({ searchParams }: { searchParams: Sear
         invoices: { include: { payments: true } },
         costs: true,
       },
+    }),
+    prisma.licenseContract.findMany({
+      include: { schedules: true, actuals: true, initialSchedules: true },
     }),
   ]);
 
@@ -62,6 +66,35 @@ export default async function FinancePage({ searchParams }: { searchParams: Sear
     })),
     months,
   });
+
+  // 当月（基準月）を決定
+  const today = new Date();
+  const todayYM = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}`;
+  const thisMonth = months.includes(todayYM) ? todayYM : months[0] ?? todayYM;
+
+  // ライセンス売上を月別に加算（年額：契約期間内、月額：過去月＋請求済当月）
+  for (const l of licenses) {
+    for (const r of plRows) {
+      r.revenue += getEffectiveActualAmount(l, r.yearMonth, thisMonth);
+    }
+    for (const r of cfRows) {
+      r.inflow += getEffectiveActualAmount(l, r.yearMonth, thisMonth);
+    }
+  }
+  // 粗利再計算
+  for (const r of plRows) {
+    r.grossProfit = r.revenue - r.cost;
+    r.grossMargin = r.revenue > 0 ? r.grossProfit / r.revenue : 0;
+  }
+  // CF累計再計算
+  {
+    let cum = 0;
+    for (const r of cfRows) {
+      r.balance = r.inflow - r.outflow;
+      cum += r.balance;
+      r.cumulativeBalance = cum;
+    }
+  }
 
   const plTotal = plRows.reduce(
     (acc, r) => ({

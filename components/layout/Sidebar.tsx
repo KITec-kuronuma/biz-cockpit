@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logout } from "@/app/login/actions";
 
 const MAIN_ITEMS = [
   { href: "/", label: "ダッシュボード", icon: "📊" },
@@ -34,8 +35,11 @@ function NavItem({ href, label, icon, active }: { href: string; label: string; i
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ userEmail }: { userEmail?: string }) {
   const pathname = usePathname();
+
+  // ログインページではサイドバーを非表示
+  if (pathname.startsWith("/login")) return null;
 
   return (
     <nav className="w-60 min-w-60 bg-slate-800 flex flex-col overflow-y-auto">
@@ -69,15 +73,25 @@ export default function Sidebar() {
       </div>
 
       <div className="mt-auto p-4 border-t border-slate-700">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 mb-3">
           <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-semibold">
-            田中
+            {userEmail?.[0]?.toUpperCase() ?? "?"}
           </div>
-          <div>
-            <div className="text-slate-200 text-xs font-medium">田中 一郎</div>
-            <div className="text-slate-500 text-[11px]">管理者</div>
+          <div className="min-w-0 flex-1">
+            <div className="text-slate-200 text-xs font-medium truncate" title={userEmail}>
+              {userEmail ?? "未ログイン"}
+            </div>
+            <div className="text-slate-500 text-[11px]">ログイン中</div>
           </div>
         </div>
+        <form action={logout}>
+          <button
+            type="submit"
+            className="w-full px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded text-xs"
+          >
+            ログアウト
+          </button>
+        </form>
       </div>
     </nav>
   );

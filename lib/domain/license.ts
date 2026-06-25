@@ -165,7 +165,7 @@ function isActiveInMonth(license: LicenseLike, yearMonth: string): boolean {
 /**
  * 課金周期に応じて月額換算
  * - MONTHLY: そのまま
- * - YEARLY: 加入期間で均等割（endDateが無ければ12ヶ月）
+ * - YEARLY: 年額 ÷ 12（年額契約は1年ごとに同額を請求・各月で1/12を計上）
  * - ONE_TIME: 契約開始月のみ全額
  */
 function normalizeByBillingCycle(
@@ -175,8 +175,7 @@ function normalizeByBillingCycle(
 ): number {
   if (license.billingCycle === "MONTHLY") return amount;
   if (license.billingCycle === "YEARLY") {
-    const months = getContractMonths(license);
-    return Math.round(amount / months);
+    return Math.round(amount / 12);
   }
   if (license.billingCycle === "ONE_TIME") {
     // 契約開始月のみ全額計上

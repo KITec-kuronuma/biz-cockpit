@@ -83,6 +83,7 @@ export default async function EditLicensePage({ params }: { params: Promise<{ id
           clients={clients}
           projects={projects}
           initial={initial}
+          latestScheduleMonth={schedules[schedules.length - 1]?.effectiveMonth}
           action={bound}
           submitLabel="更新する"
         />

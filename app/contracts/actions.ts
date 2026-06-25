@@ -81,8 +81,6 @@ export async function updateLicense(licenseId: string, formData: FormData) {
   const existing = await prisma.licenseContract.findUnique({ where: { id: licenseId } });
   if (!existing) throw new Error("ライセンスが見つかりません");
 
-  // 月額が変更された場合、適用開始月で新スケジュールを記録
-  const amountChanged = data.monthlyAmount !== existing.monthlyAmount;
   const effectiveMonth = data.effectiveMonth ?? toYearMonth(new Date());
 
   await prisma.licenseContract.update({
@@ -108,17 +106,30 @@ export async function updateLicense(licenseId: string, formData: FormData) {
       memorandum: data.memorandum || null,
       quoteSentMonth: data.quoteSentMonth || null,
       note: data.note || null,
-      ...(amountChanged && {
-        schedules: {
-          create: {
-            effectiveMonth,
-            amount: data.monthlyAmount,
-            note: "計上予定変更",
-          },
-        },
-      }),
     },
   });
+
+  // 計上予定スケジュールを upsert（同じ適用月のエントリがあれば金額更新、無ければ新規作成）
+  const existingSchedule = await prisma.licenseMonthlySchedule.findFirst({
+    where: { licenseId, effectiveMonth },
+  });
+  if (existingSchedule) {
+    if (existingSchedule.amount !== data.monthlyAmount) {
+      await prisma.licenseMonthlySchedule.update({
+        where: { id: existingSchedule.id },
+        data: { amount: data.monthlyAmount, note: "計上予定変更" },
+      });
+    }
+  } else {
+    await prisma.licenseMonthlySchedule.create({
+      data: {
+        licenseId,
+        effectiveMonth,
+        amount: data.monthlyAmount,
+        note: "計上予定変更",
+      },
+    });
+  }
 
   revalidatePath("/contracts");
   revalidatePath("/");

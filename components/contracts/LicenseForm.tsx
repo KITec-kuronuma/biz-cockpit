@@ -52,12 +52,14 @@ export function LicenseForm({
   clients,
   projects,
   initial,
+  latestScheduleMonth,
   action,
   submitLabel = "登録する",
 }: {
   clients: Client[];
   projects: Project[];
   initial?: Initial;
+  latestScheduleMonth?: string;
   action: (formData: FormData) => Promise<void> | void;
   submitLabel?: string;
 }) {
@@ -67,7 +69,10 @@ export function LicenseForm({
 
   const filteredProjects = projects.filter((p) => p.clientId === clientId);
   const isEdit = initial?.initialMonthlyAmount !== undefined;
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  // 適用開始月のデフォルト：最新スケジュールの適用月 → 契約開始月 → 現在月
+  const startMonth = initial?.startDate ? initial.startDate.slice(0, 7) : undefined;
+  const defaultEffectiveMonth =
+    latestScheduleMonth ?? startMonth ?? new Date().toISOString().slice(0, 7);
 
   async function handleSubmit(formData: FormData) {
     try {
@@ -189,11 +194,11 @@ export function LicenseForm({
           />
         </Field>
         {isEdit && (
-          <Field label="適用開始月（変更時）">
+          <Field label="適用開始月">
             <input
               type="month"
               name="effectiveMonth"
-              defaultValue={currentMonth}
+              defaultValue={defaultEffectiveMonth}
               className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
             />
           </Field>
@@ -228,7 +233,7 @@ export function LicenseForm({
 
       {isEdit && (
         <p className="text-[11px] text-slate-500 -mt-2">
-          💡 月額を変更した場合、指定した「適用開始月」以降がその金額になります（過去月は変更されません）
+          💡 「適用開始月」以降にこの計上予定額が適用されます。月や金額を変えると、該当月のスケジュールが自動で追加・更新されます（過去のスケジュール履歴は残ります）。
         </p>
       )}
 

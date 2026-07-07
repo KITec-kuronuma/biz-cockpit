@@ -23,9 +23,19 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    // Supabase接続タイムアウト：5秒以内に応答がなければ /login へ
+    const result = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("supabase_timeout")), 5000)
+      ),
+    ]);
+    user = result.data.user;
+  } catch {
+    // Supabaseが停止・タイムアウトの場合は未認証扱いで /login へ
+  }
 
   const pathname = request.nextUrl.pathname;
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/auth");

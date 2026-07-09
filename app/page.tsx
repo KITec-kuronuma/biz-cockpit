@@ -105,17 +105,24 @@ export default async function DashboardPage() {
         for (const b of clientBudgets) {
           if (byMonth[b.yearMonth]) byMonth[b.yearMonth].budget += b.amount;
         }
-        // 実績：請求月で計上
-        // 売上予定：案件月別フォーキャスト
+        // 実績：請求月で計上 / 売上予定：案件フォーキャスト（実績化済み分を差し引き二重計上防止）
         for (const p of projects) {
-          for (const f of p.forecasts) {
-            if (byMonth[f.yearMonth]) byMonth[f.yearMonth].forecast += f.amount;
-          }
+          // 案件ごとの月別実績を先に集計（フォーキャスト調整に使う）
+          const pActualByMonth: Record<string, number> = {};
           for (const inv of p.invoices) {
             const ym = `${inv.invoiceDate.getUTCFullYear()}-${String(
               inv.invoiceDate.getUTCMonth() + 1
             ).padStart(2, "0")}`;
             if (byMonth[ym]) byMonth[ym].actual += inv.amount;
+            pActualByMonth[ym] = (pActualByMonth[ym] || 0) + inv.amount;
+          }
+          // 売上予定：過去・当月は実績化済み分を差し引く（ライセンスと同じロジック）
+          for (const f of p.forecasts) {
+            if (!byMonth[f.yearMonth]) continue;
+            const pActual = pActualByMonth[f.yearMonth] || 0;
+            byMonth[f.yearMonth].forecast += f.yearMonth <= thisMonth
+              ? Math.max(0, f.amount - pActual)
+              : f.amount;
           }
         }
 
@@ -145,9 +152,9 @@ export default async function DashboardPage() {
           0
         );
         const totalCurrentMonthForecast = byMonth[thisMonth]?.forecast ?? 0;
-        // 着地見込み = 実績合計 + 当月以降の見込み（見込みのほうが実績より大きい分）
-        const totalLanding = totalActual + totalFutureForecast +
-          Math.max(0, totalCurrentMonthForecast - (byMonth[thisMonth]?.actual ?? 0));
+        // 着地見込み = 実績合計 + 当月見込み（実績差引済）+ 未来見込み
+        // ※ forecast は既に「max(0, 予定-実績)」で調整済みのため再度引かない
+        const totalLanding = totalActual + totalCurrentMonthForecast + totalFutureForecast;
 
         const achievementRate = totalBudget > 0 ? totalActual / totalBudget : 0;
         const landingRate = totalBudget > 0 ? totalLanding / totalBudget : 0;
@@ -349,16 +356,25 @@ export default async function DashboardPage() {
                   }
                 }
 
-                // 売上予定内訳：案件月別予定
+                // 売上予定内訳：案件月別予定（過去・当月は実績差引後の金額）
                 for (const p of projects) {
+                  const pActualThisMonth = p.invoices
+                    .filter((inv) => {
+                      const ym = `${inv.invoiceDate.getUTCFullYear()}-${String(inv.invoiceDate.getUTCMonth() + 1).padStart(2, "0")}`;
+                      return ym === m;
+                    })
+                    .reduce((s, inv) => s + inv.amount, 0);
                   for (const f of p.forecasts) {
-                    if (f.yearMonth === m && f.amount > 0) {
-                      forecastBreakdown.push({
-                        source: "project_forecast",
-                        description: p.client.name,
-                        subDescription: `${p.title}${f.note ? " — " + f.note : ""}`,
-                        amount: f.amount,
-                      });
+                    if (f.yearMonth === m) {
+                      const adj = m <= thisMonth ? Math.max(0, f.amount - pActualThisMonth) : f.amount;
+                      if (adj > 0) {
+                        forecastBreakdown.push({
+                          source: "project_forecast",
+                          description: p.client.name,
+                          subDescription: `${p.title}${f.note ? " — " + f.note : ""}`,
+                          amount: adj,
+                        });
+                      }
                     }
                   }
                 }

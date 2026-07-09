@@ -99,10 +99,8 @@ export function MonthlyDetailTable({ months, thisMonth, totals }: MonthlyDetailT
           </thead>
           <tbody>
             {months.map((m) => {
-              const landingAdj =
-                m.yearMonth > thisMonth
-                  ? m.actual + m.forecast
-                  : Math.max(m.actual + m.forecast, m.actual);
+              // forecast は実績差引済み（過去月は max(0, 予定-実績)）のため単純加算で正しい
+              const landingAdj = m.actual + m.forecast;
               const diffA = m.budget - m.actual;
               const diffL = m.budget - landingAdj;
               const rateA = m.budget > 0 ? m.actual / m.budget : 0;

@@ -224,7 +224,7 @@ export default async function DashboardPage() {
 
               {(() => {
                 const max = Math.max(
-                  ...Object.values(byMonth).map((v) => Math.max(v.budget, v.actual, v.forecast)),
+                  ...Object.values(byMonth).map((v) => Math.max(v.budget, v.actual + v.forecast)),
                   1
                 );
                 return (
@@ -232,27 +232,35 @@ export default async function DashboardPage() {
                     {months.map((m) => {
                       const { budget, actual, forecast } = byMonth[m];
                       const bH = (budget / max) * 100;
-                      const aH = (actual / max) * 100;
-                      const fH = (forecast / max) * 100;
+                      const stackH = ((actual + forecast) / max) * 100;
+                      const aRatio = actual / Math.max(actual + forecast, 1) * 100;
+                      const fRatio = forecast / Math.max(actual + forecast, 1) * 100;
                       const isCurrent = m === thisMonth;
                       return (
                         <div key={m} className="flex-1 flex flex-col items-center gap-1">
-                          <div className="w-full h-36 flex items-end justify-center gap-0.5">
+                          <div className="w-full h-36 flex items-end justify-center gap-1">
+                            {/* 予算バー */}
                             <div
                               className="flex-1 bg-slate-300 rounded-t-sm min-h-[1px]"
                               style={{ height: `${bH}%` }}
                               title={`予算: ${formatCurrencyFull(budget)}`}
                             />
+                            {/* 積み上げバー（実績 + 売上予定） */}
                             <div
-                              className="flex-1 bg-blue-500 rounded-t-sm min-h-[1px]"
-                              style={{ height: `${aH}%` }}
-                              title={`実績: ${formatCurrencyFull(actual)}`}
-                            />
-                            <div
-                              className="flex-1 bg-amber-400 rounded-t-sm min-h-[1px]"
-                              style={{ height: `${fH}%` }}
-                              title={`売上予定: ${formatCurrencyFull(forecast)}`}
-                            />
+                              className="flex-1 flex flex-col rounded-t-sm overflow-hidden min-h-[1px]"
+                              style={{ height: `${stackH}%` }}
+                            >
+                              <div
+                                className="w-full bg-amber-400"
+                                style={{ height: `${fRatio}%` }}
+                                title={`売上予定: ${formatCurrencyFull(forecast)}`}
+                              />
+                              <div
+                                className="w-full bg-blue-500"
+                                style={{ height: `${aRatio}%` }}
+                                title={`実績: ${formatCurrencyFull(actual)}`}
+                              />
+                            </div>
                           </div>
                           <div
                             className={`text-xs font-semibold ${

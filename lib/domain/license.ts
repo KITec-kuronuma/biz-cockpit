@@ -50,18 +50,24 @@ export function getScheduledAmount(license: LicenseLike, yearMonth: string): num
  * - なければ initialMonthlyAmount をフォールバック
  */
 export function getInitialAmount(license: LicenseLike, yearMonth: string): number {
-  if (!isActiveInMonth(license, yearMonth)) return 0;
   const initSched = license.initialSchedules ?? [];
+
   if (initSched.length > 0) {
+    // 期初予算スケジュールは計画値のため、契約開始日より前でも有効。
+    // ただし解約済・失効の endDate は尊重する。
+    if (!isNotTerminated(license, yearMonth)) return 0;
     const applicable = initSched
       .filter((s) => s.effectiveMonth <= yearMonth)
       .sort((a, b) => b.effectiveMonth.localeCompare(a.effectiveMonth));
     if (applicable.length > 0) {
       return normalizeByBillingCycle(applicable[0].amount, license, yearMonth);
     }
-      // 期初予算スケジュールはあるが対象月より前の分しかない場合は initialMonthlyAmount へ
+    // スケジュールはあるが対象月より前の分しかない場合
     return normalizeByBillingCycle(license.initialMonthlyAmount, license, yearMonth);
   }
+
+  // スケジュールなし：通常の契約期間チェックを適用
+  if (!isActiveInMonth(license, yearMonth)) return 0;
   return normalizeByBillingCycle(license.initialMonthlyAmount, license, yearMonth);
 }
 
@@ -145,6 +151,24 @@ export function isPendingBilling(
  * - SCHEDULED_CANCEL / CANCELLED / EXPIRED: endDate で停止
  * - いずれも startDate より前の月は対象外
  */
+/**
+ * 解約済・失効による打ち切りのみチェック（開始日チェックなし）
+ * 期初予算スケジュールは計画値のため、契約開始前でも有効にしたい場合に使う
+ */
+function isNotTerminated(license: LicenseLike, yearMonth: string): boolean {
+  if (
+    license.status === "CANCELLED" ||
+    license.status === "EXPIRED" ||
+    license.status === "SCHEDULED_CANCEL"
+  ) {
+    if (license.endDate) {
+      const endYM = toYearMonth(license.endDate);
+      if (yearMonth > endYM) return false;
+    }
+  }
+  return true;
+}
+
 function isActiveInMonth(license: LicenseLike, yearMonth: string): boolean {
   const startYM = toYearMonth(license.startDate);
   if (yearMonth < startYM) return false;

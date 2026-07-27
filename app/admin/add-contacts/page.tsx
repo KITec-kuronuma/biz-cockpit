@@ -35,7 +35,7 @@ const CONTACTS_TO_ADD = [
   },
   {
     clientName: "株式会社東栄住宅",
-    name: "佐塚 道",
+    name: "中川 道",
     role: "生産本部 生産管理部 生産業務推進課 課長",
     email: "m-satsuka@touei.co.jp",
     phone: "080-4124-8412",

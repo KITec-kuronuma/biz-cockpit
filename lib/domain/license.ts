@@ -59,8 +59,11 @@ export function getInitialAmount(license: LicenseLike, yearMonth: string): numbe
     if (applicable.length > 0) {
       return normalizeByBillingCycle(applicable[0].amount, license, yearMonth);
     }
+    // 期初予算スケジュールはあるが対象月より前の分しかない場合は initialMonthlyAmount へ
+    return normalizeByBillingCycle(license.initialMonthlyAmount, license, yearMonth);
   }
-  return normalizeByBillingCycle(license.initialMonthlyAmount, license, yearMonth);
+  // 期初予算スケジュール未登録 → 計上予定額を予算として使用（二重入力不要）
+  return getScheduledAmount(license, yearMonth);
 }
 
 /**

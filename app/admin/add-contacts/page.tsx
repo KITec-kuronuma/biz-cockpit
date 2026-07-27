@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { prisma } from "@/lib/prisma";
 
@@ -120,7 +121,8 @@ async function runAdd() {
     added++;
   }
 
-  console.log(`追加: ${added}件 / スキップ: ${skipped}件`);
+  revalidatePath("/clients");
+  redirect(`/clients?added=${added}&skipped=${skipped}`);
 }
 
 export default async function AddContactsPage() {

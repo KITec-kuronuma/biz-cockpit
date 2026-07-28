@@ -161,6 +161,44 @@ export default async function DashboardPage() {
         const diffActual = totalActual - totalBudget;
         const diffLanding = totalLanding - totalBudget;
 
+        // ===== 顧客別売上構成の集計 =====
+        const byClient: Record<string, { name: string; clientId: string; actual: number; forecast: number }> = {};
+
+        for (const p of projects) {
+          if (!byClient[p.clientId]) byClient[p.clientId] = { name: p.client.name, clientId: p.clientId, actual: 0, forecast: 0 };
+          const pActualByYM: Record<string, number> = {};
+          for (const inv of p.invoices) {
+            const ym = `${inv.invoiceDate.getUTCFullYear()}-${String(inv.invoiceDate.getUTCMonth() + 1).padStart(2, "0")}`;
+            if (months.includes(ym)) {
+              byClient[p.clientId].actual += inv.amount;
+              pActualByYM[ym] = (pActualByYM[ym] || 0) + inv.amount;
+            }
+          }
+          for (const f of p.forecasts) {
+            if (!months.includes(f.yearMonth)) continue;
+            const pActual = pActualByYM[f.yearMonth] || 0;
+            byClient[p.clientId].forecast += f.yearMonth <= thisMonth
+              ? Math.max(0, f.amount - pActual)
+              : f.amount;
+          }
+        }
+
+        for (const l of licenses) {
+          if (!byClient[l.clientId]) byClient[l.clientId] = { name: l.client.name, clientId: l.clientId, actual: 0, forecast: 0 };
+          for (const m of months) {
+            const lActual = getEffectiveActualAmount(l, m, thisMonth);
+            const lScheduled = getScheduledAmount(l, m);
+            byClient[l.clientId].actual += lActual;
+            byClient[l.clientId].forecast += Math.max(0, lScheduled - lActual);
+          }
+        }
+
+        const clientRows = Object.values(byClient)
+          .filter((c) => c.actual + c.forecast > 0)
+          .sort((a, b) => (b.actual + b.forecast) - (a.actual + a.forecast));
+
+        const totalClientRevenue = clientRows.reduce((s, c) => s + c.actual + c.forecast, 0);
+
         return (
           <>
             {/* 予算進捗 KPI */}
@@ -428,6 +466,74 @@ export default async function DashboardPage() {
                 />
               );
             })()}
+
+            {/* 顧客別売上構成 */}
+            {clientRows.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">顧客別売上構成</h2>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      当期の実績・着地見込みを顧客ごとに集計（実績＋売上予定）
+                    </p>
+                  </div>
+                  <div className="text-right text-xs text-slate-500">
+                    合計 {formatCurrencyFull(totalClientRevenue)}
+                  </div>
+                </div>
+                <div className="space-y-2.5">
+                  {clientRows.map((c) => {
+                    const total = c.actual + c.forecast;
+                    const pct = totalClientRevenue > 0 ? (total / totalClientRevenue) * 100 : 0;
+                    const aRatio = total > 0 ? (c.actual / total) * 100 : 0;
+                    const fRatio = total > 0 ? (c.forecast / total) * 100 : 0;
+                    return (
+                      <div key={c.clientId} className="flex items-center gap-3">
+                        <Link
+                          href={`/clients/${c.clientId}`}
+                          className="w-36 text-xs text-slate-700 hover:text-blue-600 hover:underline truncate shrink-0"
+                        >
+                          {c.name}
+                        </Link>
+                        <div className="flex-1 h-5 bg-slate-100 rounded relative overflow-hidden">
+                          <div
+                            className="absolute left-0 top-0 h-full flex rounded overflow-hidden"
+                            style={{ width: `${Math.max(pct, 0.4)}%` }}
+                          >
+                            <div
+                              className="bg-blue-500"
+                              style={{ width: `${aRatio}%` }}
+                              title={`実績: ${formatCurrencyFull(c.actual)}`}
+                            />
+                            <div
+                              className="bg-amber-400"
+                              style={{ width: `${fRatio}%` }}
+                              title={`売上予定: ${formatCurrencyFull(c.forecast)}`}
+                            />
+                          </div>
+                        </div>
+                        <div className="w-14 text-right text-xs font-semibold text-slate-700 shrink-0">
+                          {pct.toFixed(1)}%
+                        </div>
+                        <div className="w-28 text-right text-xs text-slate-500 shrink-0">
+                          {formatCurrencyFull(total)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-4 mt-3 text-xs text-slate-700 font-medium">
+                  <span>
+                    <span className="inline-block w-3 h-2 bg-blue-500 rounded-sm mr-1" />
+                    実績（請求済）
+                  </span>
+                  <span>
+                    <span className="inline-block w-3 h-2 bg-amber-400 rounded-sm mr-1" />
+                    売上予定（未請求分）
+                  </span>
+                </div>
+              </div>
+            )}
 
           </>
         );

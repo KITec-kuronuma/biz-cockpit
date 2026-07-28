@@ -21,6 +21,8 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
   const initial = {
     clientId: project.clientId,
     title: project.title,
+    occurredAt: toInputDate(project.occurredAt),
+    quotedAt: toInputDate(project.quotedAt),
     contractDate: toInputDate(project.contractDate),
     deliveryDate: toInputDate(project.deliveryDate),
     contractAmount: project.contractAmount,

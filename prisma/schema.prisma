@@ -133,6 +133,8 @@ model Project {
   clientId         String
   client           Client                    @relation(fields: [clientId], references: [id], onDelete: Restrict)
   title            String
+  occurredAt       DateTime?
+  quotedAt         DateTime?
   contractDate     DateTime?
   deliveryDate     DateTime?
   contractAmount   Int                       @default(0)

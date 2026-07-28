@@ -9,6 +9,8 @@ const projectSchema = z
   .object({
     clientId: z.string().min(1, "取引先は必須です"),
     title: z.string().min(1, "案件名は必須です"),
+    occurredAt: z.string().optional(),
+    quotedAt: z.string().optional(),
     contractDate: z.string().optional(),
     deliveryDate: z.string().optional(),
     contractAmount: z.coerce.number().int().min(0, "0以上の整数を入力してください"),
@@ -72,6 +74,8 @@ function buildData(d: z.infer<typeof projectSchema>) {
   return {
     clientId: d.clientId,
     title: d.title,
+    occurredAt: parseDate(d.occurredAt),
+    quotedAt: parseDate(d.quotedAt),
     contractDate: parseDate(d.contractDate),
     deliveryDate: parseDate(d.deliveryDate),
     contractAmount: d.contractAmount,

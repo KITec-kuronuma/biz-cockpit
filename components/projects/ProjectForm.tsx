@@ -7,6 +7,8 @@ type Client = { id: string; name: string };
 type ProjectInitial = {
   clientId: string;
   title: string;
+  occurredAt: string;
+  quotedAt: string;
   contractDate: string;
   deliveryDate: string;
   contractAmount: number;
@@ -85,6 +87,24 @@ export function ProjectForm({
         </Field>
       </div>
 
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="案件発生日">
+          <input
+            type="date"
+            name="occurredAt"
+            defaultValue={initial?.occurredAt ?? ""}
+            className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+          />
+        </Field>
+        <Field label="見積提出日">
+          <input
+            type="date"
+            name="quotedAt"
+            defaultValue={initial?.quotedAt ?? ""}
+            className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+          />
+        </Field>
+      </div>
       <div className="grid grid-cols-3 gap-4">
         <Field label="契約日">
           <input

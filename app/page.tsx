@@ -17,6 +17,14 @@ import { STATUS_LABELS, PROGRESS_LABELS } from "@/lib/types";
 import Link from "next/link";
 
 export default async function DashboardPage() {
+  // DBマイグレーション（カラム未追加の場合のみ実行、冪等）
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "occurredAt" TIMESTAMP(3);`
+  ).catch(() => {});
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "quotedAt" TIMESTAMP(3);`
+  ).catch(() => {});
+
   const [setting, projects, clientBudgets, licenses, currentFY] = await Promise.all([
     prisma.setting.findFirst(),
     prisma.project.findMany({

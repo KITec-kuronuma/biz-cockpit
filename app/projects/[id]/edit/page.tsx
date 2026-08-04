@@ -24,6 +24,7 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
     occurredAt: toInputDate(project.occurredAt),
     quotedAt: toInputDate(project.quotedAt),
     undatedForecast: project.undatedForecast ?? 0,
+    nextFYForecast: project.nextFYForecast ?? 0,
     contractDate: toInputDate(project.contractDate),
     deliveryDate: toInputDate(project.deliveryDate),
     contractAmount: project.contractAmount,

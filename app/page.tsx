@@ -27,6 +27,9 @@ export default async function DashboardPage() {
   await prisma.$executeRawUnsafe(
     `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "undatedForecast" INTEGER NOT NULL DEFAULT 0;`
   ).catch(() => {});
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "nextFYForecast" INTEGER NOT NULL DEFAULT 0;`
+  ).catch(() => {});
 
   const [setting, projects, clientBudgets, licenses, currentFY] = await Promise.all([
     prisma.setting.findFirst(),
@@ -163,9 +166,11 @@ export default async function DashboardPage() {
           0
         );
         const totalCurrentMonthForecast = byMonth[thisMonth]?.forecast ?? 0;
-        // 時期未定見込み（月別フォーキャストに未計上の当期内見込み）
+        // 時期未定見込み
         const totalUndated = projects.reduce((s, p) => s + (p.undatedForecast ?? 0), 0);
+        const totalNextFY = projects.reduce((s, p) => s + (p.nextFYForecast ?? 0), 0);
         const undatedProjects = projects.filter((p) => (p.undatedForecast ?? 0) > 0);
+        const nextFYProjects = projects.filter((p) => (p.nextFYForecast ?? 0) > 0);
         // 着地見込み = 実績合計 + 当月見込み（実績差引済）+ 未来見込み + 時期未定
         const totalLanding = totalActual + totalCurrentMonthForecast + totalFutureForecast + totalUndated;
 
@@ -215,7 +220,7 @@ export default async function DashboardPage() {
         return (
           <>
             {/* 予算進捗 KPI */}
-            <div className="grid grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-3 gap-4 mb-3">
               <KPICard
                 label="当期予算（取引先×月の合計）"
                 value={formatCurrency(totalBudget)}
@@ -229,26 +234,34 @@ export default async function DashboardPage() {
                 color="blue"
               />
               <KPICard
-                label="着地見込み（実績＋売上予定）"
+                label="達成差異（着地 − 予算）"
+                value={`${diffLanding >= 0 ? "+" : ""}${formatCurrency(diffLanding)}`}
+                sub={
+                  diffLanding >= 0
+                    ? "予算達成見込み"
+                    : `予算未達 ${formatPercent(Math.abs(diffLanding) / Math.max(totalBudget, 1))}`
+                }
+                color={diffLanding >= 0 ? "green" : "red"}
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <KPICard
+                label="着地見込み（実績＋月別予定＋当期未定）"
                 value={formatCurrency(totalLanding)}
                 sub={`予算比 ${formatPercent(landingRate)}`}
                 color={landingRate >= 1 ? "green" : "amber"}
               />
               <KPICard
-                label="時期未定見込み（当期内）"
+                label="当期・時期未定見込み"
                 value={formatCurrency(totalUndated)}
-                sub={totalUndated > 0 ? `${undatedProjects.length}案件・着地見込みに含む` : "登録なし"}
+                sub={totalUndated > 0 ? `${undatedProjects.length}案件（着地見込みに含む）` : "登録なし"}
                 color={totalUndated > 0 ? "amber" : "slate"}
               />
               <KPICard
-                label="達成差異（着地 − 予算）"
-                value={`${diffLanding >= 0 ? "+" : ""}${formatCurrency(diffLanding)}`}
-                sub={
-                  diffLanding >= 0
-                    ? "予算達成見込み 🎉"
-                    : `予算未達 ${formatPercent(Math.abs(diffLanding) / Math.max(totalBudget, 1))}`
-                }
-                color={diffLanding >= 0 ? "green" : "red"}
+                label="来期以降・時期未定見込み"
+                value={formatCurrency(totalNextFY)}
+                sub={totalNextFY > 0 ? `${nextFYProjects.length}案件（当期の着地には含まず）` : "登録なし"}
+                color={totalNextFY > 0 ? "slate" : "slate"}
               />
             </div>
 

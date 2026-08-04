@@ -135,7 +135,8 @@ model Project {
   title            String
   occurredAt       DateTime?
   quotedAt         DateTime?
-  undatedForecast  Int                       @default(0)
+  undatedForecast     Int                    @default(0)
+  nextFYForecast      Int                    @default(0)
   contractDate     DateTime?
   deliveryDate     DateTime?
   contractAmount   Int                       @default(0)

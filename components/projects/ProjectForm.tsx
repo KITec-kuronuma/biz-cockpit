@@ -10,6 +10,7 @@ type ProjectInitial = {
   occurredAt: string;
   quotedAt: string;
   undatedForecast: number;
+  nextFYForecast: number;
   contractDate: string;
   deliveryDate: string;
   contractAmount: number;
@@ -88,7 +89,7 @@ export function ProjectForm({
         </Field>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Field label="案件発生日">
           <input
             type="date"
@@ -105,7 +106,10 @@ export function ProjectForm({
             className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
           />
         </Field>
-        <Field label="時期未定見込み額（円・税抜）">
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="当期・時期未定見込み（円・税抜）">
           <input
             type="number"
             name="undatedForecast"
@@ -113,7 +117,17 @@ export function ProjectForm({
             defaultValue={initial?.undatedForecast ?? 0}
             className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
           />
-          <p className="text-[10px] text-slate-400 mt-1">当期内に売上予定だが時期不明の金額</p>
+          <p className="text-[10px] text-slate-400 mt-1">今年度内に売上予定・月が不明</p>
+        </Field>
+        <Field label="来期以降・時期未定見込み（円・税抜）">
+          <input
+            type="number"
+            name="nextFYForecast"
+            min="0"
+            defaultValue={initial?.nextFYForecast ?? 0}
+            className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+          />
+          <p className="text-[10px] text-slate-400 mt-1">来期以降に売上予定・月が不明</p>
         </Field>
       </div>
       <div className="grid grid-cols-3 gap-4">

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { formatCurrencyFull, formatDate } from "@/lib/format";
 import { PROGRESS_LABELS } from "@/lib/types";
+import { ensureMigrations } from "@/lib/migrations";
 import Link from "next/link";
 
 const TIMING_LABELS: Record<string, string> = {
@@ -28,6 +29,7 @@ export default async function ProjectsPage({
 }: {
   searchParams: Promise<{ order?: string }>;
 }) {
+  await ensureMigrations();
   const { order } = await searchParams;
   const sortDir = order === "asc" ? "asc" : "desc";
   const nextDir = sortDir === "desc" ? "asc" : "desc";

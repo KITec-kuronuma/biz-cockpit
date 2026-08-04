@@ -20,6 +20,7 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
 
   const initial = {
     clientId: project.clientId,
+    projectNo: project.projectNo ?? "",
     title: project.title,
     occurredAt: toInputDate(project.occurredAt),
     quotedAt: toInputDate(project.quotedAt),

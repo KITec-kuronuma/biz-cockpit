@@ -34,7 +34,10 @@ export default async function ProjectsPage() {
         orderBy: { yearMonth: "asc" },
       },
     },
-    orderBy: { updatedAt: "desc" },
+    orderBy: [
+      { projectNo: { sort: "desc", nulls: "last" } },
+      { updatedAt: "desc" },
+    ],
   });
 
   return (
@@ -47,6 +50,7 @@ export default async function ProjectsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-slate-700 font-bold border-b-2 border-slate-300 bg-slate-100">
+              <th className="px-3 py-2">No</th>
               <th className="px-3 py-2">案件名</th>
               <th className="px-3">取引先</th>
               <th className="px-3 text-right">契約金額</th>
@@ -66,6 +70,9 @@ export default async function ProjectsPage() {
               const isUndated = p.forecasts.length === 0 && (p.undatedForecast ?? 0) > 0;
               return (
                 <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="px-3 py-2.5 text-xs text-slate-500 font-mono">
+                    {p.projectNo ?? "—"}
+                  </td>
                   <td className="px-3 py-2.5 font-medium">
                     <Link href={`/projects/${p.id}`} className="text-blue-600 hover:underline">
                       {p.title}

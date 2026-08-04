@@ -19,6 +19,9 @@ import Link from "next/link";
 export default async function DashboardPage() {
   // DBマイグレーション（カラム未追加の場合のみ実行、冪等）
   await prisma.$executeRawUnsafe(
+    `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "projectNo" TEXT;`
+  ).catch(() => {});
+  await prisma.$executeRawUnsafe(
     `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "occurredAt" TIMESTAMP(3);`
   ).catch(() => {});
   await prisma.$executeRawUnsafe(

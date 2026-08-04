@@ -8,6 +8,7 @@ import { z } from "zod";
 const projectSchema = z
   .object({
     clientId: z.string().min(1, "取引先は必須です"),
+    projectNo: z.string().optional(),
     title: z.string().min(1, "案件名は必須です"),
     occurredAt: z.string().optional(),
     quotedAt: z.string().optional(),
@@ -75,6 +76,7 @@ function buildData(d: z.infer<typeof projectSchema>) {
   const inferred = inferStatusProgress(d.detailPhase);
   return {
     clientId: d.clientId,
+    projectNo: d.projectNo || null,
     title: d.title,
     occurredAt: parseDate(d.occurredAt),
     quotedAt: parseDate(d.quotedAt),

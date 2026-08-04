@@ -24,6 +24,9 @@ export default async function DashboardPage() {
   await prisma.$executeRawUnsafe(
     `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "quotedAt" TIMESTAMP(3);`
   ).catch(() => {});
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "undatedForecast" INTEGER NOT NULL DEFAULT 0;`
+  ).catch(() => {});
 
   const [setting, projects, clientBudgets, licenses, currentFY] = await Promise.all([
     prisma.setting.findFirst(),
@@ -160,9 +163,11 @@ export default async function DashboardPage() {
           0
         );
         const totalCurrentMonthForecast = byMonth[thisMonth]?.forecast ?? 0;
-        // 着地見込み = 実績合計 + 当月見込み（実績差引済）+ 未来見込み
-        // ※ forecast は既に「max(0, 予定-実績)」で調整済みのため再度引かない
-        const totalLanding = totalActual + totalCurrentMonthForecast + totalFutureForecast;
+        // 時期未定見込み（月別フォーキャストに未計上の当期内見込み）
+        const totalUndated = projects.reduce((s, p) => s + (p.undatedForecast ?? 0), 0);
+        const undatedProjects = projects.filter((p) => (p.undatedForecast ?? 0) > 0);
+        // 着地見込み = 実績合計 + 当月見込み（実績差引済）+ 未来見込み + 時期未定
+        const totalLanding = totalActual + totalCurrentMonthForecast + totalFutureForecast + totalUndated;
 
         const achievementRate = totalBudget > 0 ? totalActual / totalBudget : 0;
         const landingRate = totalBudget > 0 ? totalLanding / totalBudget : 0;
@@ -210,7 +215,7 @@ export default async function DashboardPage() {
         return (
           <>
             {/* 予算進捗 KPI */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-5 gap-4 mb-6">
               <KPICard
                 label="当期予算（取引先×月の合計）"
                 value={formatCurrency(totalBudget)}
@@ -228,6 +233,12 @@ export default async function DashboardPage() {
                 value={formatCurrency(totalLanding)}
                 sub={`予算比 ${formatPercent(landingRate)}`}
                 color={landingRate >= 1 ? "green" : "amber"}
+              />
+              <KPICard
+                label="時期未定見込み（当期内）"
+                value={formatCurrency(totalUndated)}
+                sub={totalUndated > 0 ? `${undatedProjects.length}案件・着地見込みに含む` : "登録なし"}
+                color={totalUndated > 0 ? "amber" : "slate"}
               />
               <KPICard
                 label="達成差異（着地 − 予算）"

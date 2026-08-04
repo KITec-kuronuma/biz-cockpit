@@ -9,6 +9,7 @@ type ProjectInitial = {
   title: string;
   occurredAt: string;
   quotedAt: string;
+  undatedForecast: number;
   contractDate: string;
   deliveryDate: string;
   contractAmount: number;
@@ -87,7 +88,7 @@ export function ProjectForm({
         </Field>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <Field label="案件発生日">
           <input
             type="date"
@@ -103,6 +104,16 @@ export function ProjectForm({
             defaultValue={initial?.quotedAt ?? ""}
             className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
           />
+        </Field>
+        <Field label="時期未定見込み額（円・税抜）">
+          <input
+            type="number"
+            name="undatedForecast"
+            min="0"
+            defaultValue={initial?.undatedForecast ?? 0}
+            className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+          />
+          <p className="text-[10px] text-slate-400 mt-1">当期内に売上予定だが時期不明の金額</p>
         </Field>
       </div>
       <div className="grid grid-cols-3 gap-4">

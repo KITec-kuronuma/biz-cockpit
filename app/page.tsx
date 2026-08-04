@@ -19,7 +19,11 @@ import Link from "next/link";
 export default async function DashboardPage() {
   // DBマイグレーション（カラム未追加の場合のみ実行、冪等）
   await prisma.$executeRawUnsafe(
-    `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "projectNo" TEXT;`
+    `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "projectNo" INTEGER;`
+  ).catch(() => {});
+  // TEXT型で作られていた場合はINTEGER型に変換
+  await prisma.$executeRawUnsafe(
+    `ALTER TABLE "Project" ALTER COLUMN "projectNo" TYPE INTEGER USING "projectNo"::INTEGER;`
   ).catch(() => {});
   await prisma.$executeRawUnsafe(
     `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "occurredAt" TIMESTAMP(3);`

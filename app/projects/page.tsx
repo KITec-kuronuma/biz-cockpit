@@ -23,19 +23,24 @@ function revenueTimingLabel(
   return "—";
 }
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ order?: string }>;
+}) {
+  const { order } = await searchParams;
+  const sortDir = order === "asc" ? "asc" : "desc";
+  const nextDir = sortDir === "desc" ? "asc" : "desc";
+  const sortIcon = sortDir === "desc" ? "↓" : "↑";
+
   const projects = await prisma.project.findMany({
     include: {
       client: true,
-      invoices: {
-        orderBy: { invoiceDate: "asc" },
-      },
-      forecasts: {
-        orderBy: { yearMonth: "asc" },
-      },
+      invoices: { orderBy: { invoiceDate: "asc" } },
+      forecasts: { orderBy: { yearMonth: "asc" } },
     },
     orderBy: [
-      { projectNo: { sort: "desc", nulls: "last" } },
+      { projectNo: { sort: sortDir, nulls: "last" } },
       { updatedAt: "desc" },
     ],
   });
@@ -50,7 +55,14 @@ export default async function ProjectsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-slate-700 font-bold border-b-2 border-slate-300 bg-slate-100">
-              <th className="px-3 py-2">No</th>
+              <th className="px-3 py-2">
+                <Link
+                  href={`/projects?order=${nextDir}`}
+                  className="flex items-center gap-1 hover:text-blue-600"
+                >
+                  No <span className="text-slate-400">{sortIcon}</span>
+                </Link>
+              </th>
               <th className="px-3 py-2">案件名</th>
               <th className="px-3">取引先</th>
               <th className="px-3 text-right">契約金額</th>

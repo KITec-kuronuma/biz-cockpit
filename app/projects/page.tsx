@@ -1,15 +1,37 @@
 import { prisma } from "@/lib/prisma";
-import { formatCurrencyFull, formatDate, formatPercent } from "@/lib/format";
-import { STATUS_LABELS, PROGRESS_LABELS } from "@/lib/types";
+import { formatCurrencyFull, formatDate } from "@/lib/format";
+import { PROGRESS_LABELS } from "@/lib/types";
 import Link from "next/link";
+
+const TIMING_LABELS: Record<string, string> = {
+  THIS_FY: "当期内・時期未定",
+  NEXT_FY: "来期以降・時期未定",
+  UNDECIDED: "完全未定",
+};
+
+function revenueTimingLabel(
+  forecasts: { yearMonth: string }[],
+  undatedForecast: number,
+  forecastTiming: string
+): string {
+  if (forecasts.length > 0) {
+    const months = forecasts.map((f) => f.yearMonth).sort();
+    if (months.length === 1) return months[0];
+    return `${months[0]} 〜 ${months[months.length - 1]}`;
+  }
+  if (undatedForecast > 0) return TIMING_LABELS[forecastTiming] ?? "完全未定";
+  return "—";
+}
 
 export default async function ProjectsPage() {
   const projects = await prisma.project.findMany({
     include: {
       client: true,
       invoices: {
-        include: { payments: true },
         orderBy: { invoiceDate: "asc" },
+      },
+      forecasts: {
+        orderBy: { yearMonth: "asc" },
       },
     },
     orderBy: { updatedAt: "desc" },
@@ -28,21 +50,20 @@ export default async function ProjectsPage() {
               <th className="px-3 py-2">案件名</th>
               <th className="px-3">取引先</th>
               <th className="px-3 text-right">契約金額</th>
-              <th className="px-3">契約状況</th>
+              <th className="px-3">売上計上予定時期</th>
               <th className="px-3">進捗</th>
               <th className="px-3">請求日</th>
               <th className="px-3">納品日</th>
-              <th className="px-3 text-right">入金率</th>
             </tr>
           </thead>
           <tbody>
             {projects.map((p) => {
-              const inv = p.invoices.reduce((s, i) => s + i.amount, 0);
-              const paid = p.invoices.reduce(
-                (s, i) => s + i.payments.reduce((ss, x) => ss + x.amount, 0),
-                0
+              const timing = revenueTimingLabel(
+                p.forecasts,
+                p.undatedForecast ?? 0,
+                p.forecastTiming ?? "UNDECIDED"
               );
-              const rate = inv > 0 ? paid / inv : null;
+              const isUndated = p.forecasts.length === 0 && (p.undatedForecast ?? 0) > 0;
               return (
                 <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50">
                   <td className="px-3 py-2.5 font-medium">
@@ -50,11 +71,11 @@ export default async function ProjectsPage() {
                       {p.title}
                     </Link>
                   </td>
-                  <td className="px-3 text-slate-600">{p.client.name}</td>
+                  <td className="px-3 text-slate-600 text-xs">{p.client.name}</td>
                   <td className="px-3 text-right">{formatCurrencyFull(p.contractAmount)}</td>
-                  <td className="px-3">
-                    <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-[11px]">
-                      {STATUS_LABELS[p.status]}
+                  <td className="px-3 text-xs">
+                    <span className={isUndated ? "text-amber-700" : "text-slate-700"}>
+                      {timing}
                     </span>
                   </td>
                   <td className="px-3 text-xs">{PROGRESS_LABELS[p.progress]}</td>
@@ -74,9 +95,6 @@ export default async function ProjectsPage() {
                     )}
                   </td>
                   <td className="px-3 text-xs">{formatDate(p.deliveryDate)}</td>
-                  <td className="px-3 text-right text-xs">
-                    {rate === null ? "—" : formatPercent(rate)}
-                  </td>
                 </tr>
               );
             })}

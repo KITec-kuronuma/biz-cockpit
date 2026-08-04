@@ -10,7 +10,7 @@ type ProjectInitial = {
   occurredAt: string;
   quotedAt: string;
   undatedForecast: number;
-  nextFYForecast: number;
+  forecastTiming: string;
   contractDate: string;
   deliveryDate: string;
   contractAmount: number;
@@ -109,7 +109,7 @@ export function ProjectForm({
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <Field label="当期・時期未定見込み（円・税抜）">
+        <Field label="時期未定見込み額（円・税抜）">
           <input
             type="number"
             name="undatedForecast"
@@ -117,17 +117,19 @@ export function ProjectForm({
             defaultValue={initial?.undatedForecast ?? 0}
             className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
           />
-          <p className="text-[10px] text-slate-400 mt-1">今年度内に売上予定・月が不明</p>
+          <p className="text-[10px] text-slate-400 mt-1">月別予定を登録すると自動でクリアされます</p>
         </Field>
-        <Field label="来期以降・時期未定見込み（円・税抜）">
-          <input
-            type="number"
-            name="nextFYForecast"
-            min="0"
-            defaultValue={initial?.nextFYForecast ?? 0}
+        <Field label="見込み区分">
+          <select
+            name="forecastTiming"
+            defaultValue={initial?.forecastTiming ?? "UNDECIDED"}
             className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
-          />
-          <p className="text-[10px] text-slate-400 mt-1">来期以降に売上予定・月が不明</p>
+          >
+            <option value="UNDECIDED">完全未定（年度も不明）</option>
+            <option value="THIS_FY">当期内（月は未定）</option>
+            <option value="NEXT_FY">来期以降（月は未定）</option>
+          </select>
+          <p className="text-[10px] text-slate-400 mt-1">着地見込みには「当期内」のみ加算</p>
         </Field>
       </div>
       <div className="grid grid-cols-3 gap-4">

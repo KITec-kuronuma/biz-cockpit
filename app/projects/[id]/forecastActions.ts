@@ -41,6 +41,12 @@ export async function upsertForecast(formData: FormData) {
     },
   });
 
+  // 月別予定が確定したら時期未定額を自動クリア
+  await prisma.project.update({
+    where: { id: data.projectId },
+    data: { undatedForecast: 0, forecastTiming: "UNDECIDED" },
+  });
+
   revalidatePath(`/projects/${data.projectId}`);
   revalidatePath("/");
   revalidatePath("/finance");

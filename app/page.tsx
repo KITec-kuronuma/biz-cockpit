@@ -28,7 +28,7 @@ export default async function DashboardPage() {
     `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "undatedForecast" INTEGER NOT NULL DEFAULT 0;`
   ).catch(() => {});
   await prisma.$executeRawUnsafe(
-    `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "nextFYForecast" INTEGER NOT NULL DEFAULT 0;`
+    `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "forecastTiming" TEXT NOT NULL DEFAULT 'UNDECIDED';`
   ).catch(() => {});
 
   const [setting, projects, clientBudgets, licenses, currentFY] = await Promise.all([
@@ -166,13 +166,15 @@ export default async function DashboardPage() {
           0
         );
         const totalCurrentMonthForecast = byMonth[thisMonth]?.forecast ?? 0;
-        // 時期未定見込み
-        const totalUndated = projects.reduce((s, p) => s + (p.undatedForecast ?? 0), 0);
-        const totalNextFY = projects.reduce((s, p) => s + (p.nextFYForecast ?? 0), 0);
-        const undatedProjects = projects.filter((p) => (p.undatedForecast ?? 0) > 0);
-        const nextFYProjects = projects.filter((p) => (p.nextFYForecast ?? 0) > 0);
-        // 着地見込み = 実績合計 + 当月見込み（実績差引済）+ 未来見込み + 時期未定
-        const totalLanding = totalActual + totalCurrentMonthForecast + totalFutureForecast + totalUndated;
+        // 時期未定見込み（区分別に集計）
+        const thisFYProjects  = projects.filter((p) => p.forecastTiming === "THIS_FY"  && (p.undatedForecast ?? 0) > 0);
+        const nextFYProjects  = projects.filter((p) => p.forecastTiming === "NEXT_FY"  && (p.undatedForecast ?? 0) > 0);
+        const undecidedProjects = projects.filter((p) => (p.forecastTiming ?? "UNDECIDED") === "UNDECIDED" && (p.undatedForecast ?? 0) > 0);
+        const totalThisFY   = thisFYProjects.reduce((s, p)  => s + p.undatedForecast, 0);
+        const totalNextFY   = nextFYProjects.reduce((s, p)  => s + p.undatedForecast, 0);
+        const totalUndecided = undecidedProjects.reduce((s, p) => s + p.undatedForecast, 0);
+        // 着地見込み = 実績 + 月別予定 + 当期・時期未定（THIS_FY のみ）
+        const totalLanding = totalActual + totalCurrentMonthForecast + totalFutureForecast + totalThisFY;
 
         const achievementRate = totalBudget > 0 ? totalActual / totalBudget : 0;
         const landingRate = totalBudget > 0 ? totalLanding / totalBudget : 0;
@@ -252,15 +254,19 @@ export default async function DashboardPage() {
                 color={landingRate >= 1 ? "green" : "amber"}
               />
               <KPICard
-                label="当期・時期未定見込み"
-                value={formatCurrency(totalUndated)}
-                sub={totalUndated > 0 ? `${undatedProjects.length}案件（着地見込みに含む）` : "登録なし"}
-                color={totalUndated > 0 ? "amber" : "slate"}
+                label="当期内・時期未定"
+                value={formatCurrency(totalThisFY)}
+                sub={totalThisFY > 0 ? `${thisFYProjects.length}案件（着地見込みに含む）` : "登録なし"}
+                color={totalThisFY > 0 ? "amber" : "slate"}
               />
               <KPICard
-                label="来期以降・時期未定見込み"
+                label="来期以降・時期未定"
                 value={formatCurrency(totalNextFY)}
-                sub={totalNextFY > 0 ? `${nextFYProjects.length}案件（当期の着地には含まず）` : "登録なし"}
+                sub={
+                  totalNextFY > 0 || totalUndecided > 0
+                    ? `来期${nextFYProjects.length}件 / 完全未定${undecidedProjects.length}件`
+                    : "登録なし"
+                }
                 color={totalNextFY > 0 ? "slate" : "slate"}
               />
             </div>

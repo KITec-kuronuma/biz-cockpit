@@ -132,7 +132,7 @@ model Project {
   id               String                    @id @default(cuid())
   clientId         String
   client           Client                    @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  projectNo        Int?
+  projectNo        String?
   title            String
   occurredAt       DateTime?
   quotedAt         DateTime?

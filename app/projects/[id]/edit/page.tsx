@@ -20,7 +20,7 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
 
   const initial = {
     clientId: project.clientId,
-    projectNo: project.projectNo ?? null,
+    projectNo: project.projectNo ?? null, // String? in schema
     title: project.title,
     occurredAt: toInputDate(project.occurredAt),
     quotedAt: toInputDate(project.quotedAt),

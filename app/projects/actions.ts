@@ -8,7 +8,7 @@ import { z } from "zod";
 const projectSchema = z
   .object({
     clientId: z.string().min(1, "取引先は必須です"),
-    projectNo: z.coerce.number().int().positive().optional(),
+    projectNo: z.string().optional(),
     title: z.string().min(1, "案件名は必須です"),
     occurredAt: z.string().optional(),
     quotedAt: z.string().optional(),

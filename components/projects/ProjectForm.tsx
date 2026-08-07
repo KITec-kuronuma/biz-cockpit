@@ -6,7 +6,7 @@ import { DETAIL_PHASE_LABELS, LICENSE_CYCLE_LABELS } from "@/lib/types";
 type Client = { id: string; name: string };
 type ProjectInitial = {
   clientId: string;
-  projectNo: number | null;
+  projectNo: string | null;
   title: string;
   occurredAt: string;
   quotedAt: string;
@@ -92,11 +92,10 @@ export function ProjectForm({
 
       <Field label="プロジェクトNo">
         <input
-          type="number"
+          type="text"
           name="projectNo"
-          min="1"
           defaultValue={initial?.projectNo ?? ""}
-          placeholder="例：101"
+          placeholder="例：PJ-015-00002"
           className="w-48 border border-slate-200 rounded px-2 py-1.5 text-sm"
         />
       </Field>

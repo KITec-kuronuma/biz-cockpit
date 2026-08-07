@@ -3,18 +3,19 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 /**
  * DDL専用の Prisma クライアントを生成する。
- * Supabase の接続プーラー（pgbouncer / DATABASE_URL）は
+ * Supabase の接続プーラー（pgbouncer / DATABASE_URL, port 6543）は
  * トランザクションモードで ALTER TABLE などの DDL をサポートしないため、
- * DIRECT_URL（直接接続）を優先して使用する。
+ * DIRECT_URL → MIGRATION_URL → DATABASE_URL の順で優先して使用する。
+ * ポート 5432 の Session Pooler (MIGRATION_URL) は DDL 対応。
  */
 function createMigrationPrisma(): PrismaClient {
-  // DIRECT_URL があればそちらを優先、なければ DATABASE_URL にフォールバック
   const url =
     process.env.DIRECT_URL ??
+    process.env.MIGRATION_URL ??
     process.env.DATABASE_URL ??
     "";
 
-  if (!url) throw new Error("DATABASE_URL / DIRECT_URL が設定されていません");
+  if (!url) throw new Error("DATABASE_URL が設定されていません");
 
   if (url.startsWith("postgres://") || url.startsWith("postgresql://")) {
     const adapter = new PrismaPg({ connectionString: url });
@@ -42,8 +43,11 @@ export async function ensureMigrations() {
 
   for (const sql of stmts) {
     await migPrisma.$executeRawUnsafe(sql).catch((e: unknown) => {
-      // IF NOT EXISTS を使っているので通常は無害、エラーはログだけ残す
-      console.warn("[migrations] skipped:", sql.split(" ").slice(0, 6).join(" "), String(e).slice(0, 80));
+      console.warn(
+        "[migrations] warn:",
+        sql.split(" ").slice(0, 6).join(" "),
+        String(e).slice(0, 120)
+      );
     });
   }
 

@@ -225,14 +225,10 @@ export default async function DashboardPage() {
                 color="blue"
               />
               <KPICard
-                label="達成差異（着地 − 予算）"
-                value={`${diffLanding >= 0 ? "+" : ""}${formatCurrency(diffLanding)}`}
-                sub={
-                  diffLanding >= 0
-                    ? "予算達成見込み"
-                    : `予算未達 ${formatPercent(Math.abs(diffLanding) / Math.max(totalBudget, 1))}`
-                }
-                color={diffLanding >= 0 ? "green" : "red"}
+                label="当期内・時期未定"
+                value={formatCurrency(totalThisFY)}
+                sub={totalThisFY > 0 ? `${thisFYProjects.length}案件（着地見込みに含む）` : "登録なし"}
+                color={totalThisFY > 0 ? "amber" : "slate"}
               />
             </div>
             <div className="grid grid-cols-3 gap-4 mb-6">
@@ -243,10 +239,14 @@ export default async function DashboardPage() {
                 color={landingRate >= 1 ? "green" : "amber"}
               />
               <KPICard
-                label="当期内・時期未定"
-                value={formatCurrency(totalThisFY)}
-                sub={totalThisFY > 0 ? `${thisFYProjects.length}案件（着地見込みに含む）` : "登録なし"}
-                color={totalThisFY > 0 ? "amber" : "slate"}
+                label="達成差異（着地 − 予算）"
+                value={`${diffLanding >= 0 ? "+" : ""}${formatCurrency(diffLanding)}`}
+                sub={
+                  diffLanding >= 0
+                    ? "予算達成見込み"
+                    : `予算未達 ${formatPercent(Math.abs(diffLanding) / Math.max(totalBudget, 1))}`
+                }
+                color={diffLanding >= 0 ? "green" : "red"}
               />
               <KPICard
                 label="来期以降・時期未定"

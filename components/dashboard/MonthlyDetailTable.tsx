@@ -91,6 +91,7 @@ export function MonthlyDetailTable({ months, thisMonth, totals }: MonthlyDetailT
               <th className="px-3 text-right text-slate-800 font-bold">予算</th>
               <th className="px-3 text-right text-slate-800 font-bold">実績</th>
               <th className="px-3 text-right text-slate-800 font-bold">売上予定</th>
+              <th className="px-3 text-right text-emerald-800 font-bold bg-emerald-50">実績＋売上予定</th>
               <th className="px-3 text-right text-slate-800 font-bold">予算 − 実績</th>
               <th className="px-3 text-right text-slate-800 font-bold">実績達成率</th>
               <th className="px-3 text-right text-slate-800 font-bold">予算 − (実績+予定)</th>
@@ -144,6 +145,9 @@ export function MonthlyDetailTable({ months, thisMonth, totals }: MonthlyDetailT
                       {formatCurrencyFull(m.forecast)}
                     </button>
                   </td>
+                  <td className={`px-3 text-right font-bold bg-emerald-50 ${landingAdj > 0 ? "text-emerald-700" : "text-slate-400"}`}>
+                    {formatCurrencyFull(landingAdj)}
+                  </td>
                   <td
                     className={`px-3 text-right font-semibold ${
                       diffA > 0 ? "text-red-700" : "text-emerald-700"
@@ -183,6 +187,9 @@ export function MonthlyDetailTable({ months, thisMonth, totals }: MonthlyDetailT
               </td>
               <td className="px-3 text-right text-amber-800">
                 {formatCurrencyFull(totals.forecast)}
+              </td>
+              <td className="px-3 text-right text-emerald-800 bg-emerald-100">
+                {formatCurrencyFull(totals.actual + totals.forecast)}
               </td>
               <td
                 className={`px-3 text-right ${

@@ -104,6 +104,15 @@ export default async function DashboardPage() {
         const byMonth: Record<string, { budget: number; actual: number; forecast: number }> = {};
         months.forEach((m) => (byMonth[m] = { budget: 0, actual: 0, forecast: 0 }));
 
+        // ===== 受託開発 / ライセンス 別集計 =====
+        type TypeBreakdown = { actual: number; forecast: number };
+        const projectByMonth: Record<string, TypeBreakdown> = {};
+        const licenseByMonth: Record<string, TypeBreakdown> = {};
+        months.forEach((m) => {
+          projectByMonth[m] = { actual: 0, forecast: 0 };
+          licenseByMonth[m] = { actual: 0, forecast: 0 };
+        });
+
         // 予算：取引先×月別予算の合計
         for (const b of clientBudgets) {
           if (byMonth[b.yearMonth]) byMonth[b.yearMonth].budget += b.amount;
@@ -117,15 +126,16 @@ export default async function DashboardPage() {
               inv.invoiceDate.getUTCMonth() + 1
             ).padStart(2, "0")}`;
             if (byMonth[ym]) byMonth[ym].actual += inv.amount;
+            if (projectByMonth[ym]) projectByMonth[ym].actual += inv.amount;
             pActualByMonth[ym] = (pActualByMonth[ym] || 0) + inv.amount;
           }
           // 売上予定：過去・当月は実績化済み分を差し引く（ライセンスと同じロジック）
           for (const f of p.forecasts) {
             if (!byMonth[f.yearMonth]) continue;
             const pActual = pActualByMonth[f.yearMonth] || 0;
-            byMonth[f.yearMonth].forecast += f.yearMonth <= thisMonth
-              ? Math.max(0, f.amount - pActual)
-              : f.amount;
+            const adj = f.yearMonth <= thisMonth ? Math.max(0, f.amount - pActual) : f.amount;
+            byMonth[f.yearMonth].forecast += adj;
+            projectByMonth[f.yearMonth].forecast += adj;
           }
         }
 
@@ -137,10 +147,13 @@ export default async function DashboardPage() {
             byMonth[m].budget += getInitialAmount(l, m);
             const scheduled = getScheduledAmount(l, m);
             const actual = getEffectiveActualAmount(l, m, thisMonth);
+            const pending = Math.max(0, scheduled - actual);
             // 実績（年額：契約期間内、月額：過去月＋当月請求済、一括：契約開始月）
             byMonth[m].actual += actual;
+            licenseByMonth[m].actual += actual;
             // 売上予定 = 計上予定のうちまだ実績化されていない分（年額：契約終了後の更新分など）
-            byMonth[m].forecast += Math.max(0, scheduled - actual);
+            byMonth[m].forecast += pending;
+            licenseByMonth[m].forecast += pending;
           }
         }
 
@@ -363,6 +376,84 @@ export default async function DashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* 受託開発 / ライセンス 月別・累計内訳 */}
+            {(() => {
+              const totalProjectActual = months.reduce((s, m) => s + projectByMonth[m].actual, 0);
+              const totalProjectForecast = months.reduce((s, m) => s + projectByMonth[m].forecast, 0);
+              const totalLicenseActual = months.reduce((s, m) => s + licenseByMonth[m].actual, 0);
+              const totalLicenseForecast = months.reduce((s, m) => s + licenseByMonth[m].forecast, 0);
+
+              // 累計（進行中月まで）
+              let cumProject = 0;
+              let cumLicense = 0;
+
+              return (
+                <div className="bg-white rounded-xl border border-slate-300 p-5 mb-6 overflow-x-auto">
+                  <h2 className="text-base font-bold mb-1 text-slate-900">受託開発 / ライセンス 月別内訳</h2>
+                  <p className="text-xs text-slate-500 mb-3">実績＋売上予定の合計を種別ごとに表示</p>
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-100">
+                      <tr className="border-b-2 border-slate-300">
+                        <th className="px-3 py-2 text-left text-slate-700 font-bold">月</th>
+                        <th className="px-3 text-right text-indigo-800 font-bold bg-indigo-50">受託開発 実績</th>
+                        <th className="px-3 text-right text-indigo-700 font-bold bg-indigo-50">受託開発 予定</th>
+                        <th className="px-3 text-right text-indigo-900 font-bold bg-indigo-100">受託開発 計</th>
+                        <th className="px-3 text-right text-purple-800 font-bold bg-purple-50">ライセンス 実績</th>
+                        <th className="px-3 text-right text-purple-700 font-bold bg-purple-50">ライセンス 予定</th>
+                        <th className="px-3 text-right text-purple-900 font-bold bg-purple-100">ライセンス 計</th>
+                        <th className="px-3 text-right text-slate-800 font-bold">月計</th>
+                        <th className="px-3 text-right text-emerald-800 font-bold bg-emerald-50">累計</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {months.map((m) => {
+                        const pActual = projectByMonth[m].actual;
+                        const pForecast = projectByMonth[m].forecast;
+                        const lActual = licenseByMonth[m].actual;
+                        const lForecast = licenseByMonth[m].forecast;
+                        const pTotal = pActual + pForecast;
+                        const lTotal = lActual + lForecast;
+                        const monthTotal = pTotal + lTotal;
+                        cumProject += pTotal;
+                        cumLicense += lTotal;
+                        const isCurrent = m === thisMonth;
+                        return (
+                          <tr
+                            key={m}
+                            className={`border-b border-slate-200 ${isCurrent ? "bg-blue-50 font-bold" : "hover:bg-slate-50"}`}
+                          >
+                            <td className="px-3 py-2 text-slate-900 font-semibold">
+                              {m.slice(5)}月{isCurrent && " (当月)"}
+                            </td>
+                            <td className="px-3 text-right text-indigo-700 bg-indigo-50/60">{formatCurrencyFull(pActual)}</td>
+                            <td className="px-3 text-right text-indigo-600 bg-indigo-50/60">{formatCurrencyFull(pForecast)}</td>
+                            <td className="px-3 text-right font-bold text-indigo-900 bg-indigo-100/60">{formatCurrencyFull(pTotal)}</td>
+                            <td className="px-3 text-right text-purple-700 bg-purple-50/60">{formatCurrencyFull(lActual)}</td>
+                            <td className="px-3 text-right text-purple-600 bg-purple-50/60">{formatCurrencyFull(lForecast)}</td>
+                            <td className="px-3 text-right font-bold text-purple-900 bg-purple-100/60">{formatCurrencyFull(lTotal)}</td>
+                            <td className="px-3 text-right font-semibold text-slate-900">{formatCurrencyFull(monthTotal)}</td>
+                            <td className="px-3 text-right font-bold text-emerald-700 bg-emerald-50/60">{formatCurrencyFull(cumProject + cumLicense)}</td>
+                          </tr>
+                        );
+                      })}
+                      {/* 年間累計行 */}
+                      <tr className="bg-slate-200 font-bold border-t-2 border-slate-400">
+                        <td className="px-3 py-2.5 text-slate-900">年間累計</td>
+                        <td className="px-3 text-right text-indigo-800 bg-indigo-100">{formatCurrencyFull(totalProjectActual)}</td>
+                        <td className="px-3 text-right text-indigo-700 bg-indigo-100">{formatCurrencyFull(totalProjectForecast)}</td>
+                        <td className="px-3 text-right text-indigo-900 bg-indigo-200">{formatCurrencyFull(totalProjectActual + totalProjectForecast)}</td>
+                        <td className="px-3 text-right text-purple-800 bg-purple-100">{formatCurrencyFull(totalLicenseActual)}</td>
+                        <td className="px-3 text-right text-purple-700 bg-purple-100">{formatCurrencyFull(totalLicenseForecast)}</td>
+                        <td className="px-3 text-right text-purple-900 bg-purple-200">{formatCurrencyFull(totalLicenseActual + totalLicenseForecast)}</td>
+                        <td className="px-3 text-right text-slate-900">{formatCurrencyFull(totalProjectActual + totalProjectForecast + totalLicenseActual + totalLicenseForecast)}</td>
+                        <td className="px-3 text-right text-emerald-800 bg-emerald-100">{formatCurrencyFull(totalProjectActual + totalProjectForecast + totalLicenseActual + totalLicenseForecast)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
 
             {/* 月次明細テーブル（クリックで内訳表示） */}
             {(() => {

@@ -105,12 +105,12 @@ export default async function DashboardPage() {
         months.forEach((m) => (byMonth[m] = { budget: 0, actual: 0, forecast: 0 }));
 
         // ===== 受託開発 / ライセンス 別集計 =====
-        type TypeBreakdown = { actual: number; forecast: number };
+        type TypeBreakdown = { actual: number; forecast: number; budget: number };
         const projectByMonth: Record<string, TypeBreakdown> = {};
         const licenseByMonth: Record<string, TypeBreakdown> = {};
         months.forEach((m) => {
-          projectByMonth[m] = { actual: 0, forecast: 0 };
-          licenseByMonth[m] = { actual: 0, forecast: 0 };
+          projectByMonth[m] = { actual: 0, forecast: 0, budget: 0 };
+          licenseByMonth[m] = { actual: 0, forecast: 0, budget: 0 };
         });
 
         // 予算：取引先×月別予算の合計
@@ -148,12 +148,15 @@ export default async function DashboardPage() {
             const scheduled = getScheduledAmount(l, m);
             const actual = getEffectiveActualAmount(l, m, thisMonth);
             const pending = Math.max(0, scheduled - actual);
+            const licInitial = getInitialAmount(l, m);
             // 実績（年額：契約期間内、月額：過去月＋当月請求済、一括：契約開始月）
             byMonth[m].actual += actual;
             licenseByMonth[m].actual += actual;
             // 売上予定 = 計上予定のうちまだ実績化されていない分（年額：契約終了後の更新分など）
             byMonth[m].forecast += pending;
             licenseByMonth[m].forecast += pending;
+            // 期初予算（ライセンス分）
+            licenseByMonth[m].budget += licInitial;
           }
         }
 
@@ -576,6 +579,207 @@ export default async function DashboardPage() {
                         <td className="px-3 text-right text-purple-900 bg-purple-200">{formatCurrencyFull(totalLicenseActual + totalLicenseForecast)}</td>
                         <td className="px-3 text-right text-slate-900">{formatCurrencyFull(totalProjectActual + totalProjectForecast + totalLicenseActual + totalLicenseForecast)}</td>
                         <td className="px-3 text-right text-emerald-800 bg-emerald-100">{formatCurrencyFull(totalProjectActual + totalProjectForecast + totalLicenseActual + totalLicenseForecast)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+
+            {/* ① 受託開発 / ライセンス 予算対比テーブル */}
+            {(() => {
+              // 受託開発予算 = 全体予算 - ライセンス期初予算
+              let cumProjBudget = 0, cumProjLanding = 0;
+              let cumLicBudget = 0, cumLicLanding = 0;
+              return (
+                <div className="bg-white rounded-xl border border-slate-300 p-5 mb-6 overflow-x-auto">
+                  <h2 className="text-base font-bold mb-1 text-slate-900">受託開発 / ライセンス 予算対比</h2>
+                  <p className="text-xs text-slate-500 mb-3">期初予算と着地見込み（実績＋予定）の差異を種別ごとに表示</p>
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-100">
+                      <tr className="border-b-2 border-slate-300">
+                        <th className="px-3 py-2 text-left text-slate-700 font-bold">月</th>
+                        <th className="px-3 text-right text-indigo-800 font-bold bg-indigo-50">受託開発 予算</th>
+                        <th className="px-3 text-right text-indigo-700 font-bold bg-indigo-50">受託開発 着地</th>
+                        <th className="px-3 text-right text-indigo-900 font-bold bg-indigo-100">受託 差異</th>
+                        <th className="px-3 text-right text-purple-800 font-bold bg-purple-50">ライセンス 予算</th>
+                        <th className="px-3 text-right text-purple-700 font-bold bg-purple-50">ライセンス 着地</th>
+                        <th className="px-3 text-right text-purple-900 font-bold bg-purple-100">ライセンス 差異</th>
+                        <th className="px-3 text-right text-slate-700 font-bold">合計 差異</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {months.map((m) => {
+                        const licBudget = licenseByMonth[m].budget;
+                        const projBudget = byMonth[m].budget - licBudget;
+                        const projLanding = projectByMonth[m].actual + projectByMonth[m].forecast;
+                        const licLanding = licenseByMonth[m].actual + licenseByMonth[m].forecast;
+                        const projDiff = projLanding - projBudget;
+                        const licDiff = licLanding - licBudget;
+                        cumProjBudget += projBudget; cumProjLanding += projLanding;
+                        cumLicBudget += licBudget; cumLicLanding += licLanding;
+                        const isCurrent = m === thisMonth;
+                        const diffColor = (d: number) => d >= 0 ? "text-emerald-700" : "text-red-600";
+                        return (
+                          <tr key={m} className={`border-b border-slate-200 ${isCurrent ? "bg-blue-50 font-bold" : "hover:bg-slate-50"}`}>
+                            <td className="px-3 py-2 text-slate-900 font-semibold">{m.slice(5)}月{isCurrent && " (当月)"}</td>
+                            <td className="px-3 text-right text-indigo-800 bg-indigo-50/60">{formatCurrencyFull(projBudget)}</td>
+                            <td className="px-3 text-right text-indigo-700 bg-indigo-50/60">{formatCurrencyFull(projLanding)}</td>
+                            <td className={`px-3 text-right font-bold bg-indigo-100/60 ${diffColor(projDiff)}`}>{projDiff >= 0 ? "+" : ""}{formatCurrencyFull(projDiff)}</td>
+                            <td className="px-3 text-right text-purple-800 bg-purple-50/60">{formatCurrencyFull(licBudget)}</td>
+                            <td className="px-3 text-right text-purple-700 bg-purple-50/60">{formatCurrencyFull(licLanding)}</td>
+                            <td className={`px-3 text-right font-bold bg-purple-100/60 ${diffColor(licDiff)}`}>{licDiff >= 0 ? "+" : ""}{formatCurrencyFull(licDiff)}</td>
+                            <td className={`px-3 text-right font-semibold ${diffColor(projDiff + licDiff)}`}>{(projDiff + licDiff) >= 0 ? "+" : ""}{formatCurrencyFull(projDiff + licDiff)}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-slate-200 font-bold border-t-2 border-slate-400">
+                        <td className="px-3 py-2.5 text-slate-900">年間累計</td>
+                        <td className="px-3 text-right text-indigo-800 bg-indigo-100">{formatCurrencyFull(cumProjBudget)}</td>
+                        <td className="px-3 text-right text-indigo-700 bg-indigo-100">{formatCurrencyFull(cumProjLanding)}</td>
+                        <td className={`px-3 text-right bg-indigo-200 ${(cumProjLanding - cumProjBudget) >= 0 ? "text-emerald-800" : "text-red-700"}`}>{(cumProjLanding - cumProjBudget) >= 0 ? "+" : ""}{formatCurrencyFull(cumProjLanding - cumProjBudget)}</td>
+                        <td className="px-3 text-right text-purple-800 bg-purple-100">{formatCurrencyFull(cumLicBudget)}</td>
+                        <td className="px-3 text-right text-purple-700 bg-purple-100">{formatCurrencyFull(cumLicLanding)}</td>
+                        <td className={`px-3 text-right bg-purple-200 ${(cumLicLanding - cumLicBudget) >= 0 ? "text-emerald-800" : "text-red-700"}`}>{(cumLicLanding - cumLicBudget) >= 0 ? "+" : ""}{formatCurrencyFull(cumLicLanding - cumLicBudget)}</td>
+                        <td className={`px-3 text-right ${((cumProjLanding + cumLicLanding) - (cumProjBudget + cumLicBudget)) >= 0 ? "text-emerald-800" : "text-red-700"}`}>{((cumProjLanding + cumLicLanding) - (cumProjBudget + cumLicBudget)) >= 0 ? "+" : ""}{formatCurrencyFull((cumProjLanding + cumLicLanding) - (cumProjBudget + cumLicBudget))}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+
+            {/* ② 解釈A：期初見込みゼロだったのに実績・予定が発生した案件 */}
+            {(() => {
+              const unplannedProjects = projects
+                .map((p) => {
+                  const fyForecasts = p.forecasts.filter((f) => months.includes(f.yearMonth));
+                  const fyInvoices = p.invoices.filter((inv) => {
+                    const ym = `${inv.invoiceDate.getUTCFullYear()}-${String(inv.invoiceDate.getUTCMonth() + 1).padStart(2, "0")}`;
+                    return months.includes(ym);
+                  });
+                  const totalInitial = fyForecasts.reduce((s, f) => s + (f.initialAmount ?? 0), 0);
+                  const fyActual = fyInvoices.reduce((s, inv) => s + inv.amount, 0);
+                  const fyForecast = fyForecasts.reduce((s, f) => s + f.amount, 0);
+                  return { p, totalInitial, fyActual, fyForecast };
+                })
+                .filter(({ totalInitial, fyActual, fyForecast }) =>
+                  totalInitial === 0 && (fyActual > 0 || fyForecast > 0)
+                )
+                .sort((a, b) => (b.fyActual + b.fyForecast) - (a.fyActual + a.fyForecast));
+
+              if (unplannedProjects.length === 0) return null;
+
+              const totalActualSum = unplannedProjects.reduce((s, { fyActual }) => s + fyActual, 0);
+              const totalFcSum = unplannedProjects.reduce((s, { fyForecast }) => s + fyForecast, 0);
+
+              return (
+                <div className="bg-white rounded-xl border border-amber-300 p-5 mb-6 overflow-x-auto">
+                  <h2 className="text-base font-bold mb-1 text-slate-900">
+                    期初見込み未計上案件
+                    <span className="ml-2 text-sm font-normal text-amber-700">（{unplannedProjects.length}件）</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mb-3">期初の月別見込み額がゼロだったが、当期に実績または売上予定が発生した案件</p>
+                  <table className="w-full text-sm">
+                    <thead className="bg-amber-50">
+                      <tr className="border-b-2 border-amber-200 text-left">
+                        <th className="px-3 py-2 text-slate-700 font-bold">案件名</th>
+                        <th className="px-3 text-slate-700 font-bold">取引先</th>
+                        <th className="px-3 text-slate-700 font-bold">状況</th>
+                        <th className="px-3 text-right text-blue-700 font-bold">当期実績</th>
+                        <th className="px-3 text-right text-amber-700 font-bold">当期予定</th>
+                        <th className="px-3 text-right text-slate-800 font-bold">合計</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {unplannedProjects.map(({ p, fyActual, fyForecast }) => (
+                        <tr key={p.id} className="border-b border-slate-200 hover:bg-amber-50/40">
+                          <td className="px-3 py-2">
+                            <Link href={`/projects/${p.id}`} className="text-blue-600 hover:underline font-medium">
+                              {p.title}
+                            </Link>
+                          </td>
+                          <td className="px-3 text-xs text-slate-600">{p.client.name}</td>
+                          <td className="px-3">
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100">{STATUS_LABELS[p.status]}</span>
+                          </td>
+                          <td className="px-3 text-right text-blue-700 font-semibold">{formatCurrencyFull(fyActual)}</td>
+                          <td className="px-3 text-right text-amber-700 font-semibold">{formatCurrencyFull(fyForecast)}</td>
+                          <td className="px-3 text-right font-bold text-slate-900">{formatCurrencyFull(fyActual + fyForecast)}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-amber-100 font-bold border-t-2 border-amber-300">
+                        <td colSpan={3} className="px-3 py-2.5 text-slate-900">合計（{unplannedProjects.length}件）</td>
+                        <td className="px-3 text-right text-blue-800">{formatCurrencyFull(totalActualSum)}</td>
+                        <td className="px-3 text-right text-amber-800">{formatCurrencyFull(totalFcSum)}</td>
+                        <td className="px-3 text-right text-slate-900">{formatCurrencyFull(totalActualSum + totalFcSum)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+
+            {/* ③ 解釈B：請求月に取引先月別予算が未登録だった案件 */}
+            {(() => {
+              type OutsideRow = { projectId: string; title: string; clientName: string; yearMonth: string; invoiceAmount: number };
+              const outsideRows: OutsideRow[] = [];
+              for (const p of projects) {
+                for (const inv of p.invoices) {
+                  const ym = `${inv.invoiceDate.getUTCFullYear()}-${String(inv.invoiceDate.getUTCMonth() + 1).padStart(2, "0")}`;
+                  if (!months.includes(ym)) continue;
+                  const hasBudget = clientBudgets.some((b) => b.clientId === p.clientId && b.yearMonth === ym && b.amount > 0);
+                  if (!hasBudget) {
+                    outsideRows.push({ projectId: p.id, title: p.title, clientName: p.client.name, yearMonth: ym, invoiceAmount: inv.amount });
+                  }
+                }
+              }
+              outsideRows.sort((a, b) => a.yearMonth.localeCompare(b.yearMonth));
+
+              if (outsideRows.length === 0) return null;
+
+              // 案件単位に集約（複数請求が同月にある場合も）
+              const byProject: Record<string, { title: string; clientName: string; months: string[]; total: number }> = {};
+              for (const r of outsideRows) {
+                if (!byProject[r.projectId]) byProject[r.projectId] = { title: r.title, clientName: r.clientName, months: [], total: 0 };
+                if (!byProject[r.projectId].months.includes(r.yearMonth)) byProject[r.projectId].months.push(r.yearMonth);
+                byProject[r.projectId].total += r.invoiceAmount;
+              }
+              const byProjectRows = Object.entries(byProject).sort((a, b) => b[1].total - a[1].total);
+              const grandTotal = byProjectRows.reduce((s, [, v]) => s + v.total, 0);
+
+              return (
+                <div className="bg-white rounded-xl border border-orange-300 p-5 mb-6 overflow-x-auto">
+                  <h2 className="text-base font-bold mb-1 text-slate-900">
+                    取引先予算外請求案件
+                    <span className="ml-2 text-sm font-normal text-orange-700">（{byProjectRows.length}件）</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mb-3">請求が発生した月に、その取引先の月別予算が未登録だった案件</p>
+                  <table className="w-full text-sm">
+                    <thead className="bg-orange-50">
+                      <tr className="border-b-2 border-orange-200 text-left">
+                        <th className="px-3 py-2 text-slate-700 font-bold">案件名</th>
+                        <th className="px-3 text-slate-700 font-bold">取引先</th>
+                        <th className="px-3 text-slate-700 font-bold">予算未設定の請求月</th>
+                        <th className="px-3 text-right text-slate-800 font-bold">請求合計</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {byProjectRows.map(([id, v]) => (
+                        <tr key={id} className="border-b border-slate-200 hover:bg-orange-50/40">
+                          <td className="px-3 py-2">
+                            <Link href={`/projects/${id}`} className="text-blue-600 hover:underline font-medium">
+                              {v.title}
+                            </Link>
+                          </td>
+                          <td className="px-3 text-xs text-slate-600">{v.clientName}</td>
+                          <td className="px-3 text-xs text-slate-600">{v.months.sort().join("、")}</td>
+                          <td className="px-3 text-right font-bold text-slate-900">{formatCurrencyFull(v.total)}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-orange-100 font-bold border-t-2 border-orange-300">
+                        <td colSpan={3} className="px-3 py-2.5 text-slate-900">合計（{byProjectRows.length}件）</td>
+                        <td className="px-3 text-right text-slate-900">{formatCurrencyFull(grandTotal)}</td>
                       </tr>
                     </tbody>
                   </table>

@@ -21,6 +21,8 @@ type ProjectInitial = {
   licenseCycle?: string | null;
   detailPhase?: string | null;
   initialForecast?: string | null;
+  fyOrigin?: string | null;
+  initialPlannedAmount?: number | null;
   note?: string | null;
 };
 
@@ -227,6 +229,36 @@ export function ProjectForm({
             ))}
           </select>
         </Field>
+      </div>
+
+      {/* 期初/期中 区分 */}
+      <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+        <p className="text-xs font-bold text-slate-700 mb-3">📊 期初計画 vs 期中発生の区分（ダッシュボード分析用）</p>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="案件区分">
+            <select
+              name="fyOrigin"
+              defaultValue={initial?.fyOrigin ?? ""}
+              className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+            >
+              <option value="">— 未設定 —</option>
+              <option value="INITIAL">期初からあった案件（期初計画に含む）</option>
+              <option value="MID_YEAR">期中に発生した案件（計画外の上積み）</option>
+            </select>
+            <p className="text-[10px] text-slate-400 mt-1">システム導入時点で仕分けしてください</p>
+          </Field>
+          <Field label="期初見込み金額（円・税抜）">
+            <input
+              type="number"
+              name="initialPlannedAmount"
+              min="0"
+              defaultValue={initial?.initialPlannedAmount ?? ""}
+              placeholder="期初時点で見込んでいた金額"
+              className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
+            />
+            <p className="text-[10px] text-slate-400 mt-1">期初案件のみ入力。現在の契約金額と異なる場合に記録</p>
+          </Field>
+        </div>
       </div>
 
       <Field label="詳細フェーズ（案件の現在の状況）">

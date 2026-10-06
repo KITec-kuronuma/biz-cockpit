@@ -649,71 +649,129 @@ export default async function DashboardPage() {
               );
             })()}
 
-            {/* ② 解釈A：期初見込みゼロだったのに実績・予定が発生した案件 */}
+            {/* ② 期初計画 vs 期中発生 分析テーブル */}
             {(() => {
-              const unplannedProjects = projects
-                .map((p) => {
-                  const fyForecasts = p.forecasts.filter((f) => months.includes(f.yearMonth));
-                  const fyInvoices = p.invoices.filter((inv) => {
-                    const ym = `${inv.invoiceDate.getUTCFullYear()}-${String(inv.invoiceDate.getUTCMonth() + 1).padStart(2, "0")}`;
-                    return months.includes(ym);
-                  });
-                  const totalInitial = fyForecasts.reduce((s, f) => s + (f.initialAmount ?? 0), 0);
-                  const fyActual = fyInvoices.reduce((s, inv) => s + inv.amount, 0);
-                  const fyForecast = fyForecasts.reduce((s, f) => s + f.amount, 0);
-                  return { p, totalInitial, fyActual, fyForecast };
-                })
-                .filter(({ totalInitial, fyActual, fyForecast }) =>
-                  totalInitial === 0 && (fyActual > 0 || fyForecast > 0)
-                )
-                .sort((a, b) => (b.fyActual + b.fyForecast) - (a.fyActual + a.fyForecast));
+              type PRow = { p: typeof projects[0]; fyActual: number; fyForecast: number };
+              const initialProjects: PRow[] = [];
+              const midYearProjects: PRow[] = [];
+              const unclassified: PRow[] = [];
 
-              if (unplannedProjects.length === 0) return null;
+              for (const p of projects) {
+                const fyInvoices = p.invoices.filter((inv) => {
+                  const ym = `${inv.invoiceDate.getUTCFullYear()}-${String(inv.invoiceDate.getUTCMonth() + 1).padStart(2, "0")}`;
+                  return months.includes(ym);
+                });
+                const fyForecasts = p.forecasts.filter((f) => months.includes(f.yearMonth));
+                const fyActual = fyInvoices.reduce((s, inv) => s + inv.amount, 0);
+                const pActualByYM: Record<string, number> = {};
+                fyInvoices.forEach((inv) => {
+                  const ym = `${inv.invoiceDate.getUTCFullYear()}-${String(inv.invoiceDate.getUTCMonth() + 1).padStart(2, "0")}`;
+                  pActualByYM[ym] = (pActualByYM[ym] || 0) + inv.amount;
+                });
+                const fyForecast = fyForecasts.reduce((s, f) => {
+                  const adj = f.yearMonth <= thisMonth ? Math.max(0, f.amount - (pActualByYM[f.yearMonth] || 0)) : f.amount;
+                  return s + adj;
+                }, 0);
+                if (fyActual === 0 && fyForecast === 0) continue;
+                const row: PRow = { p, fyActual, fyForecast };
+                if (p.fyOrigin === "INITIAL") initialProjects.push(row);
+                else if (p.fyOrigin === "MID_YEAR") midYearProjects.push(row);
+                else unclassified.push(row);
+              }
 
-              const totalActualSum = unplannedProjects.reduce((s, { fyActual }) => s + fyActual, 0);
-              const totalFcSum = unplannedProjects.reduce((s, { fyForecast }) => s + fyForecast, 0);
+              const sum = (rows: PRow[], key: "fyActual" | "fyForecast") => rows.reduce((s, r) => s + r[key], 0);
+              const totalInitialPlan = initialProjects.reduce((s, { p }) => s + (p.initialPlannedAmount ?? p.contractAmount), 0);
+              const totalInitialLanding = sum(initialProjects, "fyActual") + sum(initialProjects, "fyForecast");
+              const totalMidYear = sum(midYearProjects, "fyActual") + sum(midYearProjects, "fyForecast");
 
+              const hasData = initialProjects.length + midYearProjects.length + unclassified.length > 0;
+              if (!hasData) return null;
+
+              const renderRows = (rows: PRow[], bgHover: string) => rows
+                .sort((a, b) => (b.fyActual + b.fyForecast) - (a.fyActual + a.fyForecast))
+                .map(({ p, fyActual, fyForecast }) => {
+                  const landing = fyActual + fyForecast;
+                  const plan = p.initialPlannedAmount ?? null;
+                  const diff = plan !== null ? landing - plan : null;
+                  return (
+                    <tr key={p.id} className={`border-b border-slate-200 ${bgHover}`}>
+                      <td className="px-3 py-2">
+                        <Link href={`/projects/${p.id}`} className="text-blue-600 hover:underline font-medium text-xs">{p.title}</Link>
+                      </td>
+                      <td className="px-3 text-xs text-slate-600">{p.client.name}</td>
+                      <td className="px-3"><span className="px-2 py-0.5 rounded text-[10px] bg-slate-100">{STATUS_LABELS[p.status]}</span></td>
+                      <td className="px-3 text-right text-xs text-slate-500">{plan !== null ? formatCurrencyFull(plan) : "—"}</td>
+                      <td className="px-3 text-right text-xs text-blue-700">{formatCurrencyFull(fyActual)}</td>
+                      <td className="px-3 text-right text-xs text-amber-700">{formatCurrencyFull(fyForecast)}</td>
+                      <td className="px-3 text-right text-xs font-bold text-slate-900">{formatCurrencyFull(landing)}</td>
+                      <td className={`px-3 text-right text-xs font-bold ${diff === null ? "text-slate-400" : diff >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                        {diff === null ? "—" : `${diff >= 0 ? "+" : ""}${formatCurrencyFull(diff)}`}
+                      </td>
+                    </tr>
+                  );
+                });
+
+              const colHead = "px-3 py-2 text-slate-700 font-bold text-xs";
               return (
-                <div className="bg-white rounded-xl border border-amber-300 p-5 mb-6 overflow-x-auto">
-                  <h2 className="text-base font-bold mb-1 text-slate-900">
-                    期初見込み未計上案件
-                    <span className="ml-2 text-sm font-normal text-amber-700">（{unplannedProjects.length}件）</span>
-                  </h2>
-                  <p className="text-xs text-slate-500 mb-3">期初の月別見込み額がゼロだったが、当期に実績または売上予定が発生した案件</p>
+                <div className="bg-white rounded-xl border border-slate-300 p-5 mb-6 overflow-x-auto">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h2 className="text-base font-bold text-slate-900">期初計画 vs 期中発生 分析</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">案件編集画面で「案件区分」を設定すると表示されます</p>
+                    </div>
+                    <div className="text-right text-xs text-slate-600 space-y-0.5">
+                      <div>期初計画合計 <strong className="text-slate-900">{formatCurrencyFull(totalInitialPlan)}</strong> → 着地 <strong className={totalInitialLanding >= totalInitialPlan ? "text-emerald-700" : "text-red-600"}>{formatCurrencyFull(totalInitialLanding)}</strong>（{totalInitialLanding >= totalInitialPlan ? "+" : ""}{formatCurrencyFull(totalInitialLanding - totalInitialPlan)}）</div>
+                      <div>期中発生 上積み <strong className="text-indigo-700">{formatCurrencyFull(totalMidYear)}</strong>（{midYearProjects.length}件）</div>
+                    </div>
+                  </div>
                   <table className="w-full text-sm">
-                    <thead className="bg-amber-50">
-                      <tr className="border-b-2 border-amber-200 text-left">
-                        <th className="px-3 py-2 text-slate-700 font-bold">案件名</th>
-                        <th className="px-3 text-slate-700 font-bold">取引先</th>
-                        <th className="px-3 text-slate-700 font-bold">状況</th>
-                        <th className="px-3 text-right text-blue-700 font-bold">当期実績</th>
-                        <th className="px-3 text-right text-amber-700 font-bold">当期予定</th>
-                        <th className="px-3 text-right text-slate-800 font-bold">合計</th>
+                    <thead className="bg-slate-100">
+                      <tr className="border-b-2 border-slate-300 text-left">
+                        <th className={colHead}>案件名</th>
+                        <th className={colHead}>取引先</th>
+                        <th className={colHead}>状況</th>
+                        <th className={`${colHead} text-right`}>期初見込み</th>
+                        <th className={`${colHead} text-right text-blue-700`}>当期実績</th>
+                        <th className={`${colHead} text-right text-amber-700`}>当期予定</th>
+                        <th className={`${colHead} text-right`}>着地合計</th>
+                        <th className={`${colHead} text-right`}>増減</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {unplannedProjects.map(({ p, fyActual, fyForecast }) => (
-                        <tr key={p.id} className="border-b border-slate-200 hover:bg-amber-50/40">
-                          <td className="px-3 py-2">
-                            <Link href={`/projects/${p.id}`} className="text-blue-600 hover:underline font-medium">
-                              {p.title}
-                            </Link>
-                          </td>
-                          <td className="px-3 text-xs text-slate-600">{p.client.name}</td>
-                          <td className="px-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100">{STATUS_LABELS[p.status]}</span>
-                          </td>
-                          <td className="px-3 text-right text-blue-700 font-semibold">{formatCurrencyFull(fyActual)}</td>
-                          <td className="px-3 text-right text-amber-700 font-semibold">{formatCurrencyFull(fyForecast)}</td>
-                          <td className="px-3 text-right font-bold text-slate-900">{formatCurrencyFull(fyActual + fyForecast)}</td>
+                      {initialProjects.length > 0 && (
+                        <tr className="bg-blue-50"><td colSpan={8} className="px-3 py-1.5 text-xs font-bold text-blue-800">🏁 期初からあった案件（{initialProjects.length}件）</td></tr>
+                      )}
+                      {renderRows(initialProjects, "hover:bg-blue-50/40")}
+                      {initialProjects.length > 0 && (
+                        <tr className="bg-blue-100 font-bold border-t border-blue-300 text-xs">
+                          <td colSpan={3} className="px-3 py-2 text-blue-900">小計</td>
+                          <td className="px-3 text-right text-slate-700">{formatCurrencyFull(totalInitialPlan)}</td>
+                          <td className="px-3 text-right text-blue-800">{formatCurrencyFull(sum(initialProjects, "fyActual"))}</td>
+                          <td className="px-3 text-right text-amber-800">{formatCurrencyFull(sum(initialProjects, "fyForecast"))}</td>
+                          <td className="px-3 text-right text-slate-900">{formatCurrencyFull(totalInitialLanding)}</td>
+                          <td className={`px-3 text-right ${(totalInitialLanding - totalInitialPlan) >= 0 ? "text-emerald-700" : "text-red-600"}`}>{(totalInitialLanding - totalInitialPlan) >= 0 ? "+" : ""}{formatCurrencyFull(totalInitialLanding - totalInitialPlan)}</td>
                         </tr>
-                      ))}
-                      <tr className="bg-amber-100 font-bold border-t-2 border-amber-300">
-                        <td colSpan={3} className="px-3 py-2.5 text-slate-900">合計（{unplannedProjects.length}件）</td>
-                        <td className="px-3 text-right text-blue-800">{formatCurrencyFull(totalActualSum)}</td>
-                        <td className="px-3 text-right text-amber-800">{formatCurrencyFull(totalFcSum)}</td>
-                        <td className="px-3 text-right text-slate-900">{formatCurrencyFull(totalActualSum + totalFcSum)}</td>
-                      </tr>
+                      )}
+                      {midYearProjects.length > 0 && (
+                        <tr className="bg-indigo-50"><td colSpan={8} className="px-3 py-1.5 text-xs font-bold text-indigo-800">📈 期中に発生した案件（{midYearProjects.length}件）</td></tr>
+                      )}
+                      {renderRows(midYearProjects, "hover:bg-indigo-50/40")}
+                      {midYearProjects.length > 0 && (
+                        <tr className="bg-indigo-100 font-bold border-t border-indigo-300 text-xs">
+                          <td colSpan={3} className="px-3 py-2 text-indigo-900">小計（計画外上積み）</td>
+                          <td className="px-3 text-right text-slate-400">—</td>
+                          <td className="px-3 text-right text-blue-800">{formatCurrencyFull(sum(midYearProjects, "fyActual"))}</td>
+                          <td className="px-3 text-right text-amber-800">{formatCurrencyFull(sum(midYearProjects, "fyForecast"))}</td>
+                          <td className="px-3 text-right text-indigo-900">{formatCurrencyFull(totalMidYear)}</td>
+                          <td className="px-3 text-right text-indigo-700">+{formatCurrencyFull(totalMidYear)}</td>
+                        </tr>
+                      )}
+                      {unclassified.length > 0 && (
+                        <>
+                          <tr className="bg-slate-50"><td colSpan={8} className="px-3 py-1.5 text-xs text-slate-500">⚠️ 未分類（案件編集画面で区分を設定してください）{unclassified.length}件</td></tr>
+                          {renderRows(unclassified, "hover:bg-slate-50")}
+                        </>
+                      )}
                     </tbody>
                   </table>
                 </div>

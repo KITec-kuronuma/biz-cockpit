@@ -147,9 +147,11 @@ model Project {
   licenseCycle     String? // MONTHLY / YEARLY / ONE_TIME
   status           String                    @default("LEAD")
   progress         String                    @default("NOT_STARTED")
-  detailPhase      String?
-  initialForecast  String?
-  note             String?
+  detailPhase           String?
+  initialForecast       String?
+  fyOrigin              String?   // INITIAL（期初から）/ MID_YEAR（期中発生）
+  initialPlannedAmount  Int?      // 期初時点で見込んでいた金額（手動設定）
+  note                  String?
   invoices         Invoice[]
   costs            CostMonthly[]
   forecasts        ProjectMonthlyForecast[]

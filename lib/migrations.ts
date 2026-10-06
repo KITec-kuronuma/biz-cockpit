@@ -37,6 +37,8 @@ export async function ensureMigrations() {
     `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "quotedAt" TIMESTAMP(3);`,
     `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "undatedForecast" INTEGER NOT NULL DEFAULT 0;`,
     `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "forecastTiming" TEXT NOT NULL DEFAULT 'UNDECIDED';`,
+    `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "fyOrigin" TEXT;`,
+    `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "initialPlannedAmount" INTEGER;`,
   ];
 
   for (const sql of stmts) {

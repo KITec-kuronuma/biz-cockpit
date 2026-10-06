@@ -35,6 +35,8 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
     licenseCycle: project.licenseCycle,
     detailPhase: project.detailPhase,
     initialForecast: project.initialForecast,
+    fyOrigin: project.fyOrigin,
+    initialPlannedAmount: project.initialPlannedAmount,
     note: project.note,
   };
 

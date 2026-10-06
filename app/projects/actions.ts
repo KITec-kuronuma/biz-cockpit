@@ -23,6 +23,8 @@ const projectSchema = z
     licenseCycle: z.string().optional(),
     detailPhase: z.string().optional(),
     initialForecast: z.string().regex(/^\d{4}-\d{2}$/).optional().or(z.literal("")),
+    fyOrigin: z.enum(["INITIAL", "MID_YEAR", ""]).optional(),
+    initialPlannedAmount: z.coerce.number().int().min(0).optional(),
     note: z.string().optional(),
   })
   .refine(
@@ -93,6 +95,8 @@ function buildData(d: z.infer<typeof projectSchema>) {
     progress: inferred.progress,
     detailPhase: d.detailPhase || null,
     initialForecast: d.initialForecast || null,
+    fyOrigin: d.fyOrigin || null,
+    initialPlannedAmount: d.initialPlannedAmount ?? null,
     note: d.note || null,
   };
 }

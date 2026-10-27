@@ -3,21 +3,10 @@ import { prisma } from "@/lib/prisma";
 
 /**
  * Supabase 無料プランの自動一時停止を防ぐための keepalive エンドポイント
- * Vercel Cron Job から毎朝9時（JST）に呼び出される
- * vercel.json の crons 設定で自動実行
+ * vercel.json の crons 設定で毎日 UTC 0:00（JST 9:00）に自動実行される
  */
-export async function GET(req: Request) {
-  // Vercel Cron からの呼び出し検証（本番環境のみ）
-  const authHeader = req.headers.get("authorization");
-  if (
-    process.env.NODE_ENV === "production" &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export async function GET() {
   try {
-    // 最軽量のクエリでDB接続を維持
     const count = await prisma.project.count();
     return NextResponse.json({
       ok: true,

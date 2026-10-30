@@ -186,6 +186,41 @@ export default async function DashboardPage() {
         const diffActual = totalActual - totalBudget;
         const diffLanding = totalLanding - totalBudget;
 
+        // ===== 上期 / 下期 の分割（年度の最初の6ヶ月が上期） =====
+        const firstHalfMonths = months.slice(0, 6);
+        const secondHalfMonths = months.slice(6);
+        const firstHalfEnd = firstHalfMonths[firstHalfMonths.length - 1] ?? "";
+        const firstHalfLabel = firstHalfMonths.length > 0
+          ? `${firstHalfMonths[0].slice(5)}月〜${firstHalfEnd.slice(5)}月`
+          : "—";
+        const secondHalfLabel = secondHalfMonths.length > 0
+          ? `${secondHalfMonths[0].slice(5)}月〜${secondHalfMonths[secondHalfMonths.length - 1].slice(5)}月`
+          : "";
+
+        // 上期集計
+        const h1Budget  = firstHalfMonths.reduce((s, m) => s + byMonth[m].budget, 0);
+        const h1Actual  = firstHalfMonths.reduce((s, m) => s + byMonth[m].actual, 0);
+        const h1FutureForecast = firstHalfMonths.filter((m) => m > thisMonth).reduce((s, m) => s + byMonth[m].forecast, 0);
+        const h1CurrentForecast = firstHalfMonths.includes(thisMonth) ? (byMonth[thisMonth]?.forecast ?? 0) : 0;
+        const h1Landing = h1Actual + h1CurrentForecast + h1FutureForecast;
+        const h1Achievement = h1Budget > 0 ? h1Actual / h1Budget : 0;
+        const h1LandingRate = h1Budget > 0 ? h1Landing / h1Budget : 0;
+        // 受託・ライセンス比率（上期実績）
+        const h1ProjectActual = firstHalfMonths.reduce((s, m) => s + projectByMonth[m].actual, 0);
+        const h1LicenseActual = firstHalfMonths.reduce((s, m) => s + licenseByMonth[m].actual, 0);
+        const h1ProjectRatio = h1Actual > 0 ? h1ProjectActual / h1Actual : 0;
+        const h1LicenseRatio = h1Actual > 0 ? h1LicenseActual / h1Actual : 0;
+        // 売掛金残高（ISSUED 請求書の未回収残高合計）
+        let outstandingReceivable = 0;
+        for (const p of projects) {
+          for (const inv of p.invoices) {
+            if (inv.status !== "PAID") {
+              const paid = inv.payments.reduce((s, x) => s + x.amount, 0);
+              outstandingReceivable += Math.max(0, inv.amount - paid);
+            }
+          }
+        }
+
         // ===== 顧客別売上構成の集計 =====
         const byClient: Record<string, { name: string; clientId: string; actual: number; forecast: number }> = {};
 
@@ -274,6 +309,69 @@ export default async function DashboardPage() {
                 }
                 color={totalNextFY > 0 ? "slate" : "slate"}
               />
+            </div>
+
+            {/* 上期評価サマリー */}
+            <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200 p-5 mb-6">
+              <div className="flex items-baseline gap-2 mb-4">
+                <h2 className="text-base font-bold text-indigo-900">📊 上期評価</h2>
+                <span className="text-xs text-indigo-600 font-medium">{firstHalfLabel}</span>
+                {secondHalfLabel && (
+                  <span className="text-xs text-slate-500 ml-2">下期：{secondHalfLabel}</span>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="bg-white rounded-lg border border-indigo-200 p-3">
+                  <p className="text-[10px] font-semibold text-slate-500 mb-1">上期予算</p>
+                  <p className="text-lg font-bold text-slate-900">{formatCurrency(h1Budget)}</p>
+                </div>
+                <div className="bg-white rounded-lg border border-blue-300 p-3">
+                  <p className="text-[10px] font-semibold text-slate-500 mb-1">上期実績（請求済）</p>
+                  <p className="text-lg font-bold text-blue-700">{formatCurrency(h1Actual)}</p>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    予算達成率 <strong className={h1Achievement >= 1 ? "text-emerald-700" : "text-amber-700"}>{formatPercent(h1Achievement)}</strong>
+                  </p>
+                </div>
+                <div className={`bg-white rounded-lg border p-3 ${h1LandingRate >= 1 ? "border-emerald-300" : "border-amber-300"}`}>
+                  <p className="text-[10px] font-semibold text-slate-500 mb-1">上期着地見込み</p>
+                  <p className={`text-lg font-bold ${h1LandingRate >= 1 ? "text-emerald-700" : "text-amber-700"}`}>{formatCurrency(h1Landing)}</p>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    達成率 <strong>{formatPercent(h1LandingRate)}</strong>
+                    <span className={`ml-2 ${(h1Landing - h1Budget) >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                      （{(h1Landing - h1Budget) >= 0 ? "+" : ""}{formatCurrency(h1Landing - h1Budget)}）
+                    </span>
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-4">
+                <div className="bg-white rounded-lg border border-indigo-200 p-3">
+                  <p className="text-[10px] font-semibold text-slate-500 mb-1">受託開発 実績</p>
+                  <p className="text-base font-bold text-indigo-700">{formatCurrency(h1ProjectActual)}</p>
+                  <p className="text-xs text-slate-600 mt-0.5">上期実績の <strong>{formatPercent(h1ProjectRatio)}</strong></p>
+                </div>
+                <div className="bg-white rounded-lg border border-purple-200 p-3">
+                  <p className="text-[10px] font-semibold text-slate-500 mb-1">ライセンス 実績</p>
+                  <p className="text-base font-bold text-purple-700">{formatCurrency(h1LicenseActual)}</p>
+                  <p className="text-xs text-slate-600 mt-0.5">上期実績の <strong>{formatPercent(h1LicenseRatio)}</strong></p>
+                </div>
+                <div className="bg-white rounded-lg border border-slate-200 p-3">
+                  <p className="text-[10px] font-semibold text-slate-500 mb-1">売掛金残高</p>
+                  <p className={`text-base font-bold ${outstandingReceivable > 0 ? "text-orange-700" : "text-slate-700"}`}>{formatCurrency(outstandingReceivable)}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">請求済み未回収合計</p>
+                </div>
+                <div className="bg-white rounded-lg border border-slate-200 p-3">
+                  <p className="text-[10px] font-semibold text-slate-500 mb-1">受託：ライセンス 比率</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    <div className="h-3 rounded-l bg-indigo-500" style={{ width: `${h1ProjectRatio * 100}%`, minWidth: "4px" }} />
+                    <div className="h-3 rounded-r bg-purple-400" style={{ width: `${h1LicenseRatio * 100}%`, minWidth: "4px" }} />
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1">
+                    <span className="text-indigo-700 font-bold">{formatPercent(h1ProjectRatio)}</span>
+                    <span className="mx-1 text-slate-400">:</span>
+                    <span className="text-purple-700 font-bold">{formatPercent(h1LicenseRatio)}</span>
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* 月別比較グラフ */}
@@ -579,6 +677,108 @@ export default async function DashboardPage() {
                         <td className="px-3 text-right text-purple-900 bg-purple-200">{formatCurrencyFull(totalLicenseActual + totalLicenseForecast)}</td>
                         <td className="px-3 text-right text-slate-900">{formatCurrencyFull(totalProjectActual + totalProjectForecast + totalLicenseActual + totalLicenseForecast)}</td>
                         <td className="px-3 text-right text-emerald-800 bg-emerald-100">{formatCurrencyFull(totalProjectActual + totalProjectForecast + totalLicenseActual + totalLicenseForecast)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+
+            {/* 月次累計・達成率テーブル */}
+            {(() => {
+              let cumBudget = 0;
+              let cumActual = 0;
+              return (
+                <div className="bg-white rounded-xl border border-slate-300 p-5 mb-6 overflow-x-auto">
+                  <h2 className="text-base font-bold mb-1 text-slate-900">月次累計予算 / 実績 / 達成率</h2>
+                  <p className="text-xs text-slate-500 mb-3">実績は請求済み金額。累計達成率はその月時点での年度累計値</p>
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-100">
+                      <tr className="border-b-2 border-slate-300">
+                        <th className="px-3 py-2 text-left text-slate-700 font-bold">月</th>
+                        <th className="px-3 text-right text-slate-700 font-bold">月次予算</th>
+                        <th className="px-3 text-right text-blue-800 font-bold">月次実績</th>
+                        <th className="px-3 text-right text-slate-700 font-bold">月次達成率</th>
+                        <th className="px-3 text-right text-slate-800 font-bold bg-slate-200">累計予算</th>
+                        <th className="px-3 text-right text-blue-900 font-bold bg-blue-100">累計実績</th>
+                        <th className="px-3 text-right text-emerald-800 font-bold bg-emerald-100">累計達成率</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {months.map((m, idx) => {
+                        const { budget, actual } = byMonth[m];
+                        cumBudget += budget;
+                        cumActual += actual;
+                        const monthRate = budget > 0 ? actual / budget : null;
+                        const cumRate = cumBudget > 0 ? cumActual / cumBudget : null;
+                        const isCurrent = m === thisMonth;
+                        const isH1End = m === firstHalfEnd && secondHalfMonths.length > 0;
+                        const isH1Start = idx === 0;
+                        const isH2Start = idx === firstHalfMonths.length && secondHalfMonths.length > 0;
+                        return (
+                          <>
+                            {isH1Start && (
+                              <tr key={`h1-header`} className="bg-indigo-100">
+                                <td colSpan={7} className="px-3 py-1 text-xs font-bold text-indigo-800">
+                                  上期（{firstHalfLabel}）
+                                </td>
+                              </tr>
+                            )}
+                            {isH2Start && (
+                              <tr key={`h2-header`} className="bg-slate-200">
+                                <td colSpan={7} className="px-3 py-1 text-xs font-bold text-slate-700">
+                                  下期（{secondHalfLabel}）
+                                </td>
+                              </tr>
+                            )}
+                            <tr
+                              key={m}
+                              className={`border-b border-slate-200 ${isCurrent ? "bg-blue-50 font-bold" : "hover:bg-slate-50"}`}
+                            >
+                              <td className="px-3 py-2 text-slate-900 font-semibold">
+                                {m.slice(5)}月{isCurrent && " (当月)"}
+                              </td>
+                              <td className="px-3 text-right text-slate-700">{formatCurrencyFull(budget)}</td>
+                              <td className="px-3 text-right text-blue-700">{formatCurrencyFull(actual)}</td>
+                              <td className={`px-3 text-right font-semibold ${
+                                monthRate === null ? "text-slate-400" :
+                                monthRate >= 1 ? "text-emerald-700" :
+                                monthRate >= 0.8 ? "text-amber-700" : "text-red-600"
+                              }`}>
+                                {monthRate === null ? "—" : formatPercent(monthRate)}
+                              </td>
+                              <td className="px-3 text-right font-semibold text-slate-800 bg-slate-100/60">{formatCurrencyFull(cumBudget)}</td>
+                              <td className="px-3 text-right font-bold text-blue-800 bg-blue-50/60">{formatCurrencyFull(cumActual)}</td>
+                              <td className={`px-3 text-right font-bold bg-emerald-50/60 ${
+                                cumRate === null ? "text-slate-400" :
+                                cumRate >= 1 ? "text-emerald-700" :
+                                cumRate >= 0.8 ? "text-amber-700" : "text-red-600"
+                              }`}>
+                                {cumRate === null ? "—" : formatPercent(cumRate)}
+                              </td>
+                            </tr>
+                            {isH1End && (
+                              <tr key="h1-subtotal" className="bg-indigo-100 font-bold border-t-2 border-indigo-300">
+                                <td className="px-3 py-2 text-indigo-900">上期合計</td>
+                                <td className="px-3 text-right text-slate-800">{formatCurrencyFull(h1Budget)}</td>
+                                <td className="px-3 text-right text-blue-800">{formatCurrencyFull(h1Actual)}</td>
+                                <td className={`px-3 text-right ${h1Achievement >= 1 ? "text-emerald-700" : "text-red-600"}`}>{formatPercent(h1Achievement)}</td>
+                                <td className="px-3 text-right text-slate-800 bg-slate-200">{formatCurrencyFull(cumBudget)}</td>
+                                <td className="px-3 text-right text-blue-900 bg-blue-100">{formatCurrencyFull(cumActual)}</td>
+                                <td className={`px-3 text-right bg-emerald-100 ${h1Achievement >= 1 ? "text-emerald-800" : "text-red-700"}`}>{formatPercent(h1Achievement)}</td>
+                              </tr>
+                            )}
+                          </>
+                        );
+                      })}
+                      <tr className="bg-slate-200 font-bold border-t-2 border-slate-400">
+                        <td className="px-3 py-2.5 text-slate-900">年度合計</td>
+                        <td className="px-3 text-right text-slate-800">{formatCurrencyFull(totalBudget)}</td>
+                        <td className="px-3 text-right text-blue-800">{formatCurrencyFull(totalActual)}</td>
+                        <td className={`px-3 text-right ${achievementRate >= 1 ? "text-emerald-700" : "text-red-600"}`}>{formatPercent(achievementRate)}</td>
+                        <td className="px-3 text-right text-slate-900 bg-slate-300">{formatCurrencyFull(totalBudget)}</td>
+                        <td className="px-3 text-right text-blue-900 bg-blue-200">{formatCurrencyFull(totalActual)}</td>
+                        <td className={`px-3 text-right bg-emerald-200 ${achievementRate >= 1 ? "text-emerald-800" : "text-red-700"}`}>{formatPercent(achievementRate)}</td>
                       </tr>
                     </tbody>
                   </table>

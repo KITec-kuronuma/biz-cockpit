@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 
+export const dynamic = "force-dynamic";
+
 export interface SendEmailRequest {
   recipients: { name: string; email: string }[];
   subject: string;

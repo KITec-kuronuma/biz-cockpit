@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 const BILLING_CYCLE_MAP: Record<string, string> = {
   毎月: "MONTHLY",
   月次: "MONTHLY",

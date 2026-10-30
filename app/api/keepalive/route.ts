@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Supabase 無料プランの自動一時停止を防ぐための keepalive エンドポイント
  * vercel.json の crons 設定で毎日 UTC 0:00（JST 9:00）に自動実行される

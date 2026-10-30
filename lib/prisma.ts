@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import "dotenv/config";
 
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+const globalForPrisma = globalThis as unknown as { _prismaClient?: PrismaClient };
 
 function createPrisma(): PrismaClient {
   const url = process.env.DATABASE_URL ?? "";
@@ -24,6 +24,16 @@ function createPrisma(): PrismaClient {
   return new PrismaClient({ adapter, log: ["error", "warn"] });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrisma();
+function getClient(): PrismaClient {
+  if (!globalForPrisma._prismaClient) {
+    globalForPrisma._prismaClient = createPrisma();
+  }
+  return globalForPrisma._prismaClient;
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// Proxy で遅延初期化：import 時ではなくクエリ実行時に初めて DB 接続を確立する
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_, prop) {
+    return Reflect.get(getClient(), prop);
+  },
+});

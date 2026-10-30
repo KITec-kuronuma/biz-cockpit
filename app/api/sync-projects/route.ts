@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 // Excel「状況」→ detailPhase 変換
 const PHASE_MAP: Record<string, string> = {
   企画中: "kikaku",

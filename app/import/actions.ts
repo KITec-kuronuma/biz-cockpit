@@ -136,6 +136,7 @@ export async function importExcel(formData: FormData): Promise<ImportResult[]> {
       const data = {
         clientId: client.id,
         name,
+        department: strOrNull(r["部署名"]),
         role: strOrNull(r["役職"]),
         email: strOrNull(r["メール"]),
         phone: strOrNull(r["電話"]),
@@ -145,6 +146,7 @@ export async function importExcel(formData: FormData): Promise<ImportResult[]> {
         await prisma.contact.update({
           where: { id: existing.id },
           data: {
+            department: data.department ?? existing.department,
             role: data.role ?? existing.role,
             email: data.email ?? existing.email,
             phone: data.phone ?? existing.phone,

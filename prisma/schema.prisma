@@ -116,12 +116,13 @@ model Contact {
   id        String           @id @default(cuid())
   clientId  String
   client    Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  name      String
-  role      String?
-  email     String?
-  phone     String?
+  name       String
+  department String?
+  role       String?
+  email      String?
+  phone      String?
   // 補助：送付区分タグ（カンマ区切り：quote,invoice,contract,decision）
-  sendFlags String?
+  sendFlags  String?
   projects  ProjectContact[]
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt

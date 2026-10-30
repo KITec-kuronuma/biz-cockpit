@@ -39,6 +39,7 @@ export async function ensureMigrations() {
     `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "forecastTiming" TEXT NOT NULL DEFAULT 'UNDECIDED';`,
     `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "fyOrigin" TEXT;`,
     `ALTER TABLE "Project" ADD COLUMN IF NOT EXISTS "initialPlannedAmount" INTEGER;`,
+    `ALTER TABLE "Contact" ADD COLUMN IF NOT EXISTS "department" TEXT;`,
   ];
 
   for (const sql of stmts) {

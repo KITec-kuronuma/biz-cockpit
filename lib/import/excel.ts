@@ -164,11 +164,12 @@ export function generateTemplate(): Uint8Array {
 
   // 担当者
   const contactsSheet = XLSX.utils.aoa_to_sheet([
-    ["会社名", "氏名", "役職", "メール", "電話", "送付区分"],
+    ["会社名", "氏名", "部署名", "役職", "メール", "電話", "送付区分"],
     [
       "株式会社サンプル",
       "山田 太郎",
-      "営業部長",
+      "営業部",
+      "部長",
       "yamada@example.co.jp",
       "090-1111-2222",
       "decision,contract",
@@ -176,7 +177,8 @@ export function generateTemplate(): Uint8Array {
     [
       "株式会社サンプル",
       "田中 花子",
-      "経理担当",
+      "経理部",
+      "担当",
       "tanaka@example.co.jp",
       "090-3333-4444",
       "invoice",
